@@ -21,7 +21,7 @@ const
   #   clock-caption locker room      ->  "Mustering"
   #   mmwarn "recorded inputs"       ->  "recorded orders" (with the tick)
   #   btn-spoilers "flag story"      ->  "routs"
-  Required = [
+  RequiredOnce = [
     "<span>Commander</span>",
     "<span>Kills</span>",
     "<span>Lost</span>",
@@ -29,11 +29,20 @@ const
     "<span>Reward</span>",
     "Troops left",
     "TROOPS LEAD",
+    "Mustering",
+    "kills / routs / winner"
+  ]
+  # Present, but legitimately more than once, with the reason:
+  #   alive-label              a CLASS: the markup that emits it plus its own
+  #                            CSS rule and the .tiny rule that hides it
+  #   Forming up on the line   the curtain's static caption in markup, and the
+  #                            first entry of the rotating prep-talk list
+  #   showing recorded orders  the inherited static #mmwarn text, and the JS
+  #                            that rewrites it with the mismatch tick
+  RequiredPresent = [
     "alive-label",
     "Forming up on the line",
-    "Mustering",
-    "showing recorded orders",
-    "kills / routs / winner"
+    "showing recorded orders"
   ]
 
 proc withoutComments(text: string): string =
@@ -77,9 +86,20 @@ suite "magent endcard labels":
             "...")
           fail()
 
-  test "every re-mapped string is present":
-    let page = readRepoFile("client/replay_broadcast.html")
-    for wanted in Required:
+  test "every re-mapped string is present exactly once":
+    ## Present is not enough: a re-mapping that ships BOTH words (the new
+    ## caption added and the old one left behind in a second rule) reads as a
+    ## pass to a presence check. So the count is asserted, over the page with
+    ## comments stripped -- a comment naming a deleted label is documentation,
+    ## not vocabulary.
+    let page = withoutComments(readRepoFile("client/replay_broadcast.html"))
+    for wanted in RequiredOnce:
+      let seen = page.count(wanted)
+      if seen != 1:
+        checkpoint("the re-mapped string appears " & $seen & " times, not 1: " &
+          wanted)
+        fail()
+    for wanted in RequiredPresent:
       if wanted notin page:
         checkpoint("the re-mapped string is missing: " & wanted)
         fail()
