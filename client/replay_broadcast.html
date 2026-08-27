@@ -2012,7 +2012,11 @@ button.beat-marker {
   function frame(s, ctx, jumped) {
     CTX = ctx;
     ensureHeatChip();
-    if (jumped) placed = {};
+    // `placed` is NOT cleared on a backward jump. A marker is a permanent
+    // annotation of the timeline, and the buttons already on #scrub are not
+    // removed by a seek -- so clearing the dedup map only let a live
+    // fallback/firstblood event replayed after the seek append a SECOND button
+    // at the same offset (r1 review F12).
     placeBeats(s);
     var events = (s.mg && s.mg.events) || [];
     for (var i = 0; i < events.length; i++) mgEvent(events[i], s);
