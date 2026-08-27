@@ -1,0 +1,119 @@
+## Shared types, wire constants and the rune caps.
+##
+## GameVersion gates replay compatibility. The changelog comment below is
+## PREPEND-ONLY (the starter's discipline, kept, with
+## `tools/ci/check_gameversion.sh`): say what the number means and what it
+## obsoletes, so two branches claiming one number are distinguishable.
+
+import std/[strutils, unicode]
+
+const
+  GameVersion* = "1"
+    ## GV1 (magent-battle v1): MAgent2 battle_v4 ported to a 45x45 integer
+    ##   grid, two commander seats, nine squads each, two games with the sides
+    ##   swapped. Obsoletes nothing.
+
+  GameName* = "magent-battle"
+  ReplayMagic* = "COWLDMAG"
+  ReplayFormatVersion* = 1'u16
+  ProtocolId* = "magent-battle/v1"
+
+  MaxSayRunes* = 120
+  MaxNoteRunes* = 240
+  MaxPromptRunes* = 4000
+  MaxPolicyLabelRunes* = 64
+  MaxFallbackDetailRunes* = 200
+  MaxStopDetailRunes* = 200
+  MaxReplyBytes* = 8192
+  MaxSquadIdRunes* = 2
+  MaxVerbRunes* = 8
+  MaxFlankSideRunes* = 5
+  MaxDirectiveRunes* = 6000
+
+  SquadCount* = 9
+  SeatCount* = 2
+  MaxUnits* = 400
+    ## Sprite/object pool ceiling. 45x45 spawns 81 per army; the pools are
+    ## sized above the largest configured board so a unit id never falls out
+    ## of a pool mid-episode.
+
+  TargetFps* = 30
+    ## Playback rate: one tick per animation frame at 30 fps, so 600 ticks of
+    ## episode play for 20 s -- long enough for `viewer_smoke --soak 10` to
+    ## observe real advancement.
+  PlaybackSpeeds* = [1, 2, 4, 8]
+
+  ReasonComplete* = "complete"
+  ReasonDeadline* = "deadline"
+  ReasonFault* = "fault"
+
+  EndRuleWipe* = "wipe"
+  EndRuleTickCap* = "tickCap"
+  EndRuleWallClock* = "wallClock"
+  EndRuleFault* = "fault"
+
+type
+  MagentError* = object of CatchableError
+  SimGuardError* = object of MagentError
+  ReplayError* = object of MagentError
+
+  Phase* = enum
+    Lobby, Playing, GameOver
+
+  SlotConfig* = object
+    team*: string
+    token*: string
+
+  PlayerConfig* = object
+    name*: string
+
+  GameConfig* = object
+    seed*: int
+    numAgents*: int
+    minPlayers*: int
+    mapSize*: int
+    maxTicks*: int
+    maxGames*: int
+    turnTicks*: int
+    turnBudgetMs*: int
+    turnSpacingMs*: int
+    attempt1Ms*: int
+    retryMs*: int
+    wallClockBudgetSeconds*: int
+    lobbyJoinTimeoutTicks*: int
+    gameOverTicks*: int
+    fastMode*: bool
+    showPlayerLabels*: bool
+    model*: string
+    maxOutputTokens*: int
+    players*: seq[PlayerConfig]
+    slots*: seq[SlotConfig]
+    tokens*: seq[string]
+
+proc truncateRunes*(text: string, limit: int): string =
+  ## Cuts `text` to at most `limit` RUNES, on a rune boundary. The single
+  ## place any recorded string is shortened. Byte truncation is forbidden
+  ## anywhere on the path to the replay: a half-codepoint renders in a browser
+  ## and then fails a strict UTF-8 parser.
+  if limit <= 0:
+    return ""
+  if text.runeLen <= limit:
+    return text
+  text.runeSubStr(0, limit)
+
+proc sanitizeLine*(text: string, limit: int): string =
+  ## A recorded free-text field: newlines collapse to spaces so one record
+  ## stays one line, then the rune cap applies on a rune boundary.
+  text.replace("\n", " ").replace("\r", " ").strip().truncateRunes(limit)
+
+proc sanitizeSay*(text: string): string =
+  ## The commander's spectator line. Rune-capped FIRST, then filtered to
+  ## printable characters with braces excluded: the replay chat stream tells a
+  ## control record from a plain line by a leading '{'.
+  result = ""
+  for rune in text.sanitizeLine(MaxSayRunes).runes:
+    let value = int(rune)
+    if value >= 32 and value != ord('{') and value != ord('}') and
+        value != 127:
+      result.add($rune)
+  result = result.strip()

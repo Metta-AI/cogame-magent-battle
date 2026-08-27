@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en" data-fixture="magent-battle-renderer">
+<head>
+<meta charset="utf-8">
+<title>magent-battle worst-case renderer fixture</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #120d09; color: #f2e8d8;
+    font: 12px system-ui; overflow: hidden; }
+  #host { position: absolute; inset: 0 0 24px 0; }
+  iframe { border: 0; display: block; }
+  #report { position: absolute; left: 0; right: 0; bottom: 0; height: 24px;
+    line-height: 24px; padding: 0 8px; white-space: nowrap;
+    overflow: hidden; background: #0b0704; }
+</style>
+</head>
+<body>
+<div id="host"></div>
+<div id="report">fixture: booting</div>
+<script>
+/*
+ * The worst-case TEXT fixture.
+ *
+ * tools/ci/docker_smoke.sh runs with NO ANTHROPIC_API_KEY, so every seat in the
+ * CI replay plays the scripted baseline and a scripted commander emits no `say`
+ * at all -- the smoke replay can never exercise the feed's text path
+ * (cogchemists, 2026-08-24). This page therefore LOADS THE SHIPPED
+ * dist/static-replay-viewer/index.html in an iframe, waits for its own
+ * data-replay-loaded, and then drives THAT PAGE'S OWN feed and scorebug with a
+ * full-cap 120-rune commander line on both seats at several widths including
+ * 360 px. It does not re-implement any drawing (the particle-worlds 2026-08-26
+ * scar): every string it checks was laid out by the real chrome.
+ *
+ * It fails by setting data-replay-error, which viewer_smoke.mjs reads and fails
+ * fast on; it passes by setting data-replay-loaded="true" on its own <html>.
+ */
+(function () {
+  'use strict';
+
+  var WIDTHS = [360, 620, 1024];
+  // 120 runes exactly -- MaxSayRunes. Two 4-byte emoji sit ON the cap so a byte
+  // truncation anywhere on the path shows up as mojibake rather than silently
+  // passing.
+  var CAP_SAY = (function () {
+    var body = 'wrap their left, A2 holds the gap and A7-A9 go wide around the ' +
+      'ridge while the reserve waits behind rank two ';
+    var runes = Array.from(body);
+    while (runes.length < 118) runes.push('x');
+    runes.length = 118;
+    return runes.join('') + '\u{1F6E1}\u{1F525}';
+  })();
+  var LONG_NAME = 'magent-battle-vanguard-with-a-very-long-policy-name';
+
+  function fail(message) {
+    document.documentElement.setAttribute('data-replay-error', message);
+    document.getElementById('report').textContent = 'fixture FAILED: ' + message;
+    throw new Error(message);
+  }
+
+  function replayUrl() {
+    var fromQuery = null;
+    try {
+      fromQuery = new URLSearchParams(location.search).get('replay');
+    } catch (error) { /* no query */ }
+    return fromQuery || './episode.replay';
+  }
+
+  function synthetic(base, width) {
+    // The real page's own state shape, with the worst-case strings written in.
+    var s = JSON.parse(JSON.stringify(base));
+    s.mg.seats = [
+      { slot: 0, alias: 'ALPHA', name: LONG_NAME, side: 'red', alive: 63,
+        kills: 150, fallbacks: 1, kind: 'llm', reward: '612.415' },
+      { slot: 1, alias: 'BRAVO', name: LONG_NAME + '-2', side: 'blue',
+        alive: 12, kills: 99, fallbacks: 0, kind: 'llm', reward: '-238.09' }
+    ];
+    s.mg.events = [
+      { k: 'say', slot: 0, text: CAP_SAY },
+      { k: 'say', slot: 1, text: CAP_SAY },
+      { k: 'order', slot: 0, squad: 'A3', verb: 'focus', arg: 'B5' },
+      { k: 'order', slot: 1, squad: 'B7', verb: 'retreat', arg: '' },
+      { k: 'fallback', slot: 1, cause: 'timeout' },
+      { k: 'firstblood', slot: 0, unit: 3, victim: 90 },
+      { k: 'rout', army: 1, lost: 14 }
+    ];
+    s.width = width;
+    return s;
+  }
+
+  var host = document.getElementById('host');
+  var report = document.getElementById('report');
+  var iframe = document.createElement('iframe');
+  iframe.src = './index.html?replay=' + encodeURIComponent(replayUrl());
+  iframe.width = WIDTHS[0];
+  iframe.height = Math.round(WIDTHS[0] * 1.35);
+  host.appendChild(iframe);
+
+  var deadline = Date.now() + 60000;
+  var checks = [];
+
+  function ready() {
+    try {
+      var doc = iframe.contentDocument;
+      return !!doc &&
+        doc.documentElement.getAttribute('data-replay-loaded') === 'true';
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function driveWidth(index, done) {
+    if (index >= WIDTHS.length) { done(); return; }
+    var width = WIDTHS[index];
+    iframe.width = width;
+    iframe.height = Math.round(width * 1.35);
+    setTimeout(function () {
+      var w = iframe.contentWindow;
+      var doc = iframe.contentDocument;
+      if (!w.MagentChrome || !w.MAGENT_CTX) {
+        fail('the shipped page exposes no MagentChrome/MAGENT_CTX to drive');
+      }
+      var base = w.MAGENT_CTX.getState();
+      if (!base || !base.mg) fail('the shipped page has no state frame yet');
+      var s = synthetic(base, width);
+      w.MagentChrome.frame(s, w.MAGENT_CTX, false);
+
+      // What can actually go wrong with DOM text: a row clipped to nothing, or
+      // a name collapsed to a bare ellipsis. Both are measured on the REAL
+      // laid-out nodes.
+      var feed = doc.getElementById('killfeed');
+      var rows = feed ? feed.querySelectorAll('.feed-row') : [];
+      if (!rows.length) fail('no feed row was rendered at ' + width + 'px');
+      var sayRow = null;
+      for (var i = 0; i < rows.length; i++) {
+        if (rows[i].querySelector('.mg-say')) sayRow = rows[i];
+      }
+      if (!sayRow) fail('the commander line never reached the feed at ' + width);
+      var box = sayRow.getBoundingClientRect();
+      if (box.width < 20 || box.height < 6) {
+        fail('the commander line laid out as a sliver at ' + width + 'px: ' +
+          Math.round(box.width) + 'x' + Math.round(box.height));
+      }
+      if (box.top < -1 || box.left < -1) {
+        fail('the commander line was laid out off-frame at ' + width + 'px');
+      }
+      var name = doc.getElementById('pname-0');
+      if (name) {
+        var nameBox = name.getBoundingClientRect();
+        var text = (name.textContent || '').trim();
+        if (!text.length) fail('the plate name is empty at ' + width + 'px');
+        if (nameBox.width < 18) {
+          fail('the plate name collapsed to ' + Math.round(nameBox.width) +
+            'px at ' + width + 'px -- .plate-name needs min-width');
+        }
+      }
+      checks.push(width + 'px: feed ' + Math.round(box.width) + 'x' +
+        Math.round(box.height) + ', name ' +
+        (name ? Math.round(name.getBoundingClientRect().width) : 0) + 'px');
+      driveWidth(index + 1, done);
+    }, 400);
+  }
+
+  function poll() {
+    if (ready()) {
+      driveWidth(0, function () {
+        report.textContent = 'fixture ok - ' + checks.join(' | ');
+        document.documentElement.setAttribute('data-replay-loaded', 'true');
+      });
+      return;
+    }
+    try {
+      var error = iframe.contentDocument &&
+        iframe.contentDocument.documentElement.getAttribute('data-replay-error');
+      if (error) fail('the shipped page failed: ' + error);
+    } catch (ignored) { /* cross-document timing */ }
+    if (Date.now() > deadline) {
+      fail('the shipped page never set data-replay-loaded');
+    }
+    setTimeout(poll, 250);
+  }
+  poll();
+})();
+</script>
+</body>
+</html>

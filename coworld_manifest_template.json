@@ -1,0 +1,250 @@
+{
+  "$schema": "https://softmax.com/schemas/coworld-manifest-v1.json",
+  "tags": ["magent", "battle", "port", "multiagent"],
+  "episode_timeout_minutes": 20,
+  "game": {
+    "name": "magent-battle",
+    "owner": "daveey@softmax.com",
+    "description": "A port of MAgent2's battle_v4. Two armies of 81 identical soldiers meet on an open 45x45 integer grid. Nobody plays a soldier: each of the two seats is an ARMY COMMANDER that issues one order to each of its nine squads every 20 simulation ticks, and a deterministic squad controller turns those orders into the MAgent actions its soldiers actually take. A commander sees only what its own soldiers can see. The army with more soldiers standing when the game ends wins it; an episode is two games with the sides swapped, so upstream's own two-column spawn asymmetry is neutralised, and the seat that wins the pair wins the episode. Scoring is exactly zero-sum.",
+    "replay_viewer": {
+      "bundle": "static-replay-viewer"
+    },
+    "runnable": {
+      "type": "game",
+      "image": "{{MAGENT_BATTLE_IMAGE}}",
+      "run": ["/bin/magent-battle"],
+      "env": {
+        "ANTHROPIC_API_KEY_URI": "secret://coworld/magent-battle/anthropic_api_key"
+      }
+    },
+    "protocols": {
+      "player": {
+        "type": "uri",
+        "value": "https://github.com/Metta-AI/cogame-magent-battle/blob/main/docs/PROTOCOL.md"
+      },
+      "global": {
+        "type": "uri",
+        "value": "https://github.com/Metta-AI/cogame-magent-battle/blob/main/docs/PROTOCOL.md"
+      }
+    },
+    "docs": {
+      "readme": {
+        "type": "uri",
+        "value": "https://github.com/Metta-AI/cogame-magent-battle/blob/main/README.md"
+      },
+      "pages": [
+        {
+          "id": "rules.md",
+          "title": "Rules",
+          "content": {
+            "type": "uri",
+            "value": "https://github.com/Metta-AI/cogame-magent-battle/blob/main/docs/RULES.md"
+          }
+        },
+        {
+          "id": "porting.md",
+          "title": "Porting MAgent battle",
+          "content": {
+            "type": "uri",
+            "value": "https://github.com/Metta-AI/cogame-magent-battle/blob/main/docs/PORTING-MAGENT.md"
+          }
+        }
+      ]
+    },
+    "config_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tokens", "players"],
+      "properties": {
+        "tokens": {
+          "type": "array",
+          "description": "Per-seat join tokens. RUNNER-INJECTED: the platform supplies these, so no game_config in this manifest carries a literal tokens array.",
+          "items": {"type": "string"},
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "players": {
+          "type": "array",
+          "description": "One entry per seat. The name is spectator-side only; in game the seats are Alpha and Bravo.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {"name": {"type": "string"}}
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "slots": {
+          "type": "array",
+          "description": "Which colour each seat holds in game 1. The sides swap for game 2.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "team": {"type": "string", "enum": ["red", "blue"]},
+              "token": {"type": "string"}
+            }
+          },
+          "minItems": 0,
+          "maxItems": 2
+        },
+        "num_agents": {
+          "type": "integer",
+          "description": "Seats. Always exactly two: this is the idea's policy-per-army seating.",
+          "minimum": 2,
+          "maximum": 2,
+          "default": 2
+        },
+        "seed": {"type": "integer", "minimum": 0},
+        "mapSize": {
+          "type": "integer",
+          "description": "Board edge in cells. Upstream generate_map derives the army size from it: 45 -> 81 per army, 31 -> 30 per army.",
+          "enum": [31, 45],
+          "default": 45
+        },
+        "maxTicks": {"type": "integer", "minimum": 1, "maximum": 1000, "default": 300},
+        "maxGames": {"type": "integer", "minimum": 1, "maximum": 8, "default": 2},
+        "turnTicks": {"type": "integer", "minimum": 1, "maximum": 1000, "default": 20},
+        "turnBudgetMs": {"type": "integer", "minimum": 0, "maximum": 60000, "default": 14000},
+        "turnSpacingMs": {"type": "integer", "minimum": 0, "maximum": 60000, "default": 8000},
+        "attempt1Ms": {"type": "integer", "minimum": 1000, "maximum": 30000, "default": 9000},
+        "retryMs": {"type": "integer", "minimum": 1000, "maximum": 30000, "default": 4000},
+        "wallClockBudgetSeconds": {
+          "type": "integer",
+          "description": "The engine's own hard stop, 55 percent of the assumed 1200 s episode timeout. Never above 660.",
+          "minimum": 10,
+          "maximum": 660,
+          "default": 660
+        },
+        "lobbyJoinTimeoutTicks": {"type": "integer", "minimum": 1, "default": 2400},
+        "gameOverTicks": {"type": "integer", "minimum": 0, "maximum": 600, "default": 30},
+        "minPlayers": {"type": "integer", "minimum": 0, "maximum": 2, "default": 2},
+        "fastMode": {"type": "boolean", "default": true},
+        "showPlayerLabels": {"type": "boolean", "default": false},
+        "maxOutputTokens": {"type": "integer", "minimum": 1, "maximum": 8192, "default": 900},
+        "model": {"type": "string"}
+      }
+    },
+    "results_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "names": {"type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": 2},
+        "aliases": {"type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": 2},
+        "scores": {"type": "array", "items": {"type": "integer"}, "minItems": 2, "maxItems": 2},
+        "win": {"type": "array", "items": {"type": "boolean"}, "minItems": 2, "maxItems": 2},
+        "winner": {"type": ["integer", "null"]},
+        "reason": {"type": "string", "enum": ["complete", "deadline", "fault"]},
+        "games": {"type": "integer"},
+        "gameWins": {"type": "array", "items": {"type": "integer"}, "minItems": 2, "maxItems": 2},
+        "survivors": {"type": "array", "items": {"type": "integer"}, "minItems": 2, "maxItems": 2},
+        "kills": {"type": "array", "items": {"type": "integer"}, "minItems": 2, "maxItems": 2},
+        "finalTick": {"type": "integer"},
+        "turnsPlayed": {"type": "integer"},
+        "seed": {"type": "integer"},
+        "magentReward": {"type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": 2},
+        "policyKinds": {"type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": 2},
+        "llmTurns": {"type": "array", "items": {"type": "integer"}, "minItems": 2, "maxItems": 2},
+        "fallbackTurns": {"type": "array", "items": {"type": "integer"}, "minItems": 2, "maxItems": 2},
+        "ordersRejected": {"type": "array", "items": {"type": "integer"}, "minItems": 2, "maxItems": 2},
+        "deadSeats": {"type": "array", "items": {"type": "boolean"}, "minItems": 2, "maxItems": 2},
+        "gameResults": {"type": "array", "items": {"type": "object"}, "minItems": 0, "maxItems": 8},
+        "stopDetail": {"type": "string"}
+      }
+    }
+  },
+  "player": [
+    {
+      "id": "pincer",
+      "type": "player",
+      "name": "magent-battle-pincer",
+      "description": "The published scripted default and the server-side fallback: squads below 4.0 mean hp retreat to heal, squads with a visible enemy centroid within 3 cells focus it, and the rest split into a left wing, a centre and a right wing.",
+      "image": "{{MAGENT_BATTLE_IMAGE}}",
+      "run": ["/bin/magent-battle-player"],
+      "source_url": "https://github.com/Metta-AI/cogame-magent-battle",
+      "env": {"PLAYER_SCRIPTED": "pincer"},
+      "resources": {
+        "requests": {"cpu": "100m", "memory": "64Mi"},
+        "limits": {"cpu": "1"}
+      }
+    },
+    {
+      "id": "line",
+      "type": "player",
+      "name": "magent-battle-line",
+      "description": "Every squad advances, every turn, forever. A mass charge beats a badly split commander, so it is a real opponent and the control against which a commander is measured.",
+      "image": "{{MAGENT_BATTLE_IMAGE}}",
+      "run": ["/bin/magent-battle-player"],
+      "source_url": "https://github.com/Metta-AI/cogame-magent-battle",
+      "env": {"PLAYER_SCRIPTED": "line"},
+      "resources": {
+        "requests": {"cpu": "100m", "memory": "64Mi"},
+        "limits": {"cpu": "1"}
+      }
+    }
+  ],
+  "variants": [
+    {
+      "id": "battle",
+      "name": "Battle (45x45, 81 v 81)",
+      "description": "MAgent battle_v4 at upstream scale: two armies of 81 on a 45x45 open grid, one commander per army, two games with the sides swapped, 15 command turns each.",
+      "game_config": {
+        "players": [{"name": "Alpha"}, {"name": "Bravo"}],
+        "slots": [{"team": "red"}, {"team": "blue"}],
+        "num_agents": 2,
+        "minPlayers": 2,
+        "mapSize": 45,
+        "maxTicks": 300,
+        "maxGames": 2,
+        "turnTicks": 20,
+        "turnBudgetMs": 14000,
+        "turnSpacingMs": 8000,
+        "wallClockBudgetSeconds": 660,
+        "lobbyJoinTimeoutTicks": 2400,
+        "fastMode": true,
+        "showPlayerLabels": false
+      }
+    },
+    {
+      "id": "skirmish",
+      "name": "Skirmish (31x31, 30 v 30)",
+      "description": "The same rules on a 31x31 grid with 30 soldiers per army and 10 command turns a game - a faster ladder round with the identical nine-squad command surface.",
+      "game_config": {
+        "players": [{"name": "Alpha"}, {"name": "Bravo"}],
+        "slots": [{"team": "red"}, {"team": "blue"}],
+        "num_agents": 2,
+        "minPlayers": 2,
+        "mapSize": 31,
+        "maxTicks": 200,
+        "maxGames": 2,
+        "turnTicks": 20,
+        "turnBudgetMs": 14000,
+        "turnSpacingMs": 8000,
+        "wallClockBudgetSeconds": 660,
+        "lobbyJoinTimeoutTicks": 2400,
+        "fastMode": true,
+        "showPlayerLabels": false
+      }
+    }
+  ],
+  "certification": {
+    "players": [{"player_id": "pincer"}, {"player_id": "line"}],
+    "game_config": {
+      "players": [{"name": "Alpha"}, {"name": "Bravo"}],
+      "slots": [{"team": "red"}, {"team": "blue"}],
+      "num_agents": 2,
+      "minPlayers": 2,
+      "seed": 42,
+      "mapSize": 31,
+      "maxTicks": 300,
+      "maxGames": 2,
+      "turnTicks": 20,
+      "turnSpacingMs": 0,
+      "wallClockBudgetSeconds": 240,
+      "lobbyJoinTimeoutTicks": 600,
+      "gameOverTicks": 30,
+      "fastMode": true,
+      "showPlayerLabels": false
+    }
+  }
+}

@@ -1,0 +1,6 @@
+scratch/
+nimcache/
+dist/
+*.exe
+replay-viewer/dist/
+nim.cfg

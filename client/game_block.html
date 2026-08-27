@@ -1,0 +1,317 @@
+<style>
+/* --- scorebug: side chip, alive numeral, fallback glyph ----------------- */
+/* The plate name must survive a 360px featured-match iframe: it grows into
+   whatever room the plate has and ellipsises only when it genuinely runs out,
+   never collapsing to a bare "..." . */
+.plate-name {
+  flex: 1 1 auto;
+  min-width: 3.2em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.plate .plate-alias {
+  font-family: var(--pixfont);
+  font-size: calc(9 * var(--u));
+  letter-spacing: 0.14em;
+  color: var(--paper-dim);
+  white-space: nowrap;
+  flex: none;
+}
+.plate .side-chip {
+  font-family: var(--finefont);
+  font-size: calc(7 * var(--u));
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #16110d;
+  padding: calc(1 * var(--u)) calc(3 * var(--u));
+  border-radius: calc(2 * var(--u));
+  flex: none;
+}
+.plate .alive-label {
+  font-family: var(--finefont);
+  font-size: calc(8 * var(--u));
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--paper-dim);
+  flex: none;
+}
+.plate .alive-num {
+  font-family: var(--pixfont);
+  font-size: calc(22 * var(--u));
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+.plate .kill-num {
+  font-family: var(--pixfont);
+  font-size: calc(11 * var(--u));
+  color: var(--paper-dim);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+.plate .fb-glyph {
+  font-family: var(--pixfont);
+  font-size: calc(11 * var(--u));
+  color: var(--amber);
+  flex: none;
+}
+/* Under 640px of board the labels go: each plate keeps only
+   alias + name + alive count, and the kills numeral is hidden. */
+#stage.tiny .plate .alive-label,
+#stage.tiny .plate .kill-num,
+#stage.tiny .plate .fb-glyph { display: none; }
+
+/* --- the HEAT toggle, in the TOP band and never in the transport band --- */
+#heatchip {
+  position: absolute;
+  top: calc(3 * var(--u));
+  right: calc(6 * var(--u));
+  z-index: 6;
+  font-family: var(--finefont);
+  font-size: calc(8 * var(--u));
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--paper-dim);
+  background: rgba(12, 9, 6, 0.62);
+  border: 0;
+  padding: calc(3 * var(--u)) calc(6 * var(--u));
+  cursor: pointer;
+}
+#heatchip.on { color: var(--amber); box-shadow: inset 0 0 0 1px currentColor; }
+
+/* --- scrubber beats: one rule per kind the sim emits, and no others ----- */
+/* Buttons, not divs: each carries a title + aria-label and seeks on click. */
+button.beat-marker {
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  appearance: none;
+  background: var(--paper-dim);
+}
+.beat-marker.firstblood {
+  background: var(--paper);
+  width: calc(3 * var(--u));
+  height: calc(12 * var(--u));
+}
+.beat-marker.rout { width: calc(3 * var(--u)); height: calc(10 * var(--u)); }
+.beat-marker.rout.red { background: var(--red); }
+.beat-marker.rout.blue { background: var(--blue); }
+.beat-marker.wipe { width: calc(4 * var(--u)); height: calc(14 * var(--u)); }
+.beat-marker.wipe.red { background: var(--red); }
+.beat-marker.wipe.blue { background: var(--blue); }
+.beat-marker.fallback {
+  background: var(--amber);
+  width: calc(2 * var(--u));
+  height: calc(7 * var(--u));
+  opacity: 0.9;
+}
+.beat-marker.end {
+  background: var(--amber);
+  width: calc(3 * var(--u));
+  height: calc(14 * var(--u));
+}
+
+/* --- endcard columns and the per-game rows ----------------------------- */
+.ec-thead, .ec-trow {
+  display: grid;
+  grid-template-columns: 1.6fr 0.7fr 0.7fr 0.7fr 1fr;
+  gap: calc(4 * var(--u));
+  font-size: calc(9 * var(--u));
+}
+.ec-thead {
+  color: var(--paper-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-top: calc(4 * var(--u));
+}
+.ec-trow { font-variant-numeric: tabular-nums; }
+.ec-tname {
+  font-family: var(--pixfont);
+  font-size: calc(14 * var(--u));
+  letter-spacing: 0.1em;
+}
+.ec-tfoot {
+  display: flex;
+  align-items: baseline;
+  gap: calc(6 * var(--u));
+  margin-top: calc(4 * var(--u));
+}
+.ec-tfoot .fl-cap {
+  font-size: calc(8 * var(--u));
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--paper-dim);
+}
+.ec-tfoot .fl-num {
+  font-family: var(--pixfont);
+  font-size: calc(18 * var(--u));
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- feed rows -------------------------------------------------------- */
+.feed-row .mg-order { color: var(--amber); }
+.feed-row .mg-say { color: var(--paper); font-style: italic; }
+</style>
+<script>
+(function () {
+  'use strict';
+  // Every name here carries an mg-/battle- prefix ON PURPOSE. The page's chrome
+  // alias block declares the shared beat builder with a hoisted `var markBeat`,
+  // so a game-block function of that same name would be silently swallowed by
+  // it and the scrubber would end up with unlabelled div markers that never
+  // seek (cogame-tandem, 2026-08-23). tests/test_magent_viewer.nim asserts the
+  // whole alias list is untouched below this banner.
+  var CTX = null;
+  var placed = {};          // "tick|kind|side" -> true (dedup)
+  var beatsPlaced = false;
+  var heatOn = true;
+
+  function mgId(id) { return document.getElementById(id); }
+
+  function scrubGeometry(s) {
+    var st = Math.max(0, s.st || 0);
+    var mx = Math.max(st + 1, s.mx || 1);
+    return { st: st, span: mx - st };
+  }
+
+  // battleBeat -- NEVER markBeat. Appends a LABELLED, CLICKABLE button to
+  // #scrub that seeks on click.
+  function battleBeat(s, tick, kind, side, label) {
+    var key = tick + '|' + kind + '|' + (side || '');
+    if (placed[key]) return;
+    placed[key] = true;
+    var scrub = mgId('scrub');
+    if (!scrub) return;
+    var g = scrubGeometry(s);
+    var el = document.createElement('button');
+    el.type = 'button';
+    el.className = 'beat-marker ' + kind + (side ? ' ' + side : '');
+    el.style.left =
+      (Math.min(1, Math.max(0, (tick - g.st) / g.span)) * 100) + '%';
+    el.title = label + ' \u2014 click to jump here';
+    el.setAttribute('aria-label', label);
+    el.__tick = tick;
+    el.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      CTX.send('s:' + tick);
+    });
+    scrub.appendChild(el);
+  }
+
+  function feedRow(html, cls) {
+    var row = document.createElement('div');
+    row.className = 'feed-row' + (cls ? ' ' + cls : '');
+    row.innerHTML = html;
+    CTX.pushFeed(row);
+  }
+
+  function aliasOf(s, slot) {
+    var seats = (s.mg && s.mg.seats) || [];
+    return (seats[slot] && seats[slot].alias) || ('SEAT ' + slot);
+  }
+
+  // The HEAT toggle lives in the TOP band, never in the transport band.
+  function ensureHeatChip() {
+    if (mgId('heatchip')) return;
+    var chrome = mgId('chrome');
+    if (!chrome) return;
+    var chip = document.createElement('button');
+    chip.type = 'button';
+    chip.id = 'heatchip';
+    chip.textContent = 'heat';
+    chip.title = 'Army density overlay (h)';
+    chip.setAttribute('aria-label', 'Toggle the army density overlay');
+    chip.classList.add('on');
+    chip.addEventListener('click', toggleHeat);
+    chrome.appendChild(chip);
+  }
+
+  function toggleHeat() {
+    heatOn = !heatOn;
+    var chip = mgId('heatchip');
+    if (chip) chip.classList.toggle('on', heatOn);
+    if (CTX && CTX.core && CTX.core.setHeat) CTX.core.setHeat(heatOn);
+  }
+
+  // Plain language, never internal notation.
+  function mgEvent(event, s) {
+    switch (event.k) {
+      case 'order':
+        feedRow('<span class="mg-order">' + CTX.esc(aliasOf(s, event.slot)) +
+          ' ' + CTX.esc(event.squad) + ' \u2192 ' + CTX.esc(event.verb) +
+          (event.arg ? ' ' + CTX.esc(event.arg) : '') + '</span>');
+        return true;
+      case 'say':
+        feedRow('<span class="mg-say">' +
+          CTX.esc(aliasOf(s, event.slot).charAt(0) +
+            aliasOf(s, event.slot).slice(1).toLowerCase()) +
+          ': \u201c' + CTX.esc(event.text) + '\u201d</span>');
+        return true;
+      case 'fallback':
+        feedRow(CTX.esc(aliasOf(s, event.slot)) +
+          ' MISSED THE CALL \u2014 scripted orders (' +
+          CTX.esc(event.cause) + ')');
+        battleBeat(s, s.t, 'fallback', '',
+          aliasOf(s, event.slot) + ' fell back to scripted orders');
+        return true;
+      case 'firstblood':
+        feedRow('<b>FIRST BLOOD \u2014 ' + CTX.esc(aliasOf(s, event.slot)) +
+          '</b>');
+        CTX.banner('FIRST BLOOD \u2014 ' + aliasOf(s, event.slot), 'firstblood');
+        CTX.beatPulse();
+        battleBeat(s, s.t, 'firstblood', '',
+          'First blood - ' + aliasOf(s, event.slot));
+        return true;
+      case 'rout':
+        feedRow('<b>' + CTX.esc(aliasOf(s, event.army)) +
+          ' IS ROUTED \u2014 ' + event.lost + ' DOWN</b>');
+        CTX.banner(aliasOf(s, event.army) + ' IS ROUTED', 'rout');
+        CTX.beatPulse();
+        return true;
+      case 'wipe':
+        feedRow('<b>' + CTX.esc(aliasOf(s, event.army)) +
+          ' IS WIPED OUT</b>');
+        CTX.banner(aliasOf(s, event.army) + ' IS WIPED OUT', 'wipe');
+        CTX.beatPulse();
+        return true;
+      case 'end':
+      case 'turn':
+      case 'kill':
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  // The pre-scanned beat timeline arrives once, on the first frame, so every
+  // marker is on the scrubber at full width before playback reaches it.
+  function placeBeats(s) {
+    if (beatsPlaced || !s.beats) return;
+    beatsPlaced = true;
+    for (var i = 0; i < s.beats.length; i++) {
+      var b = s.beats[i];
+      battleBeat(s, b.t, b.k, b.side || '', b.label || b.k);
+    }
+  }
+
+  function frame(s, ctx, jumped) {
+    CTX = ctx;
+    ensureHeatChip();
+    if (jumped) placed = {};
+    placeBeats(s);
+    var events = (s.mg && s.mg.events) || [];
+    for (var i = 0; i < events.length; i++) mgEvent(events[i], s);
+  }
+
+  window.MagentChrome = {
+    install: function (ctx) {
+      CTX = ctx;
+      ensureHeatChip();
+      if (ctx && ctx.core && ctx.core.setHeat) ctx.core.setHeat(heatOn);
+    },
+    frame: frame,
+    toggleHeat: toggleHeat,
+    battleBeat: battleBeat
+  };
+})();
+</script>

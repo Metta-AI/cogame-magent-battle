@@ -1,0 +1,31 @@
+[
+  {
+    "name": "magent-battle-vanguard",
+    "run": "/bin/magent-battle-player",
+    "env": {
+      "PLAYER_PROMPT": "Win by concentration. Pick ONE wing at turn 1 and put at least six squads on it, ordered\n\"flank\" to that side, and keep them together: a squad that arrives alone dies alone.\nLeave at most two squads as a screen with \"hold\" on your own half, roughly level with\nyour starting line, so the enemy cannot walk through the middle unpunished; the last\nsquad is your reserve, kept two ranks behind the mass with \"hold\".\nOnce your mass is within about ten cells of enemy contact, switch every squad in it to\n\"focus\" on the SAME enemy squad - the one with the highest \"seen\" count nearest your\nmass - and keep focusing that id until it is gone, then move to the next nearest. Do not\nspread focus across two ids at once; the whole point is that nine attackers kill a\nsoldier in one tick.\nSend the reserve in only when your mass is already engaged, and send it to the same\ntarget id. If a squad's mean hp drops below 4.0, order it \"retreat\" for exactly one turn\nto heal, then bring it straight back with \"focus\" on whatever the mass is chewing.\nNever order \"advance\" for more than one squad at a time - it scatters them."
+    }
+  },
+  {
+    "name": "magent-battle-marshal",
+    "run": "/bin/magent-battle-player",
+    "env": {
+      "PLAYER_PROMPT": "Win by attrition. Healing is 0.1 hp per tick and a turn is 20 ticks, so a squad that\nspends one turn out of contact comes back with 2 hp per soldier. That is a free soldier\nfor every five you pull out, and it is how you win a long fight.\nTurn 1: order all nine squads \"hold\" on a straight line about six cells in front of your\nown edge, spread evenly across the board in y, and make the enemy cross the open ground.\nDo not advance into them.\nEvery turn, read your own squads first: any squad with mean hp below 5.5 gets \"retreat\"\nthis turn, no exceptions, and goes back to \"hold\" on the line when it is above 8.0.\nAny squad reporting a visible enemy squad adjacent to it gets \"focus\" on that id.\nOnly when your total alive count is HIGHER than the count of enemies you can see, and no\nsquad of yours is retreating, do you push: order the three squads nearest the enemy mass\nto \"focus\" the weakest visible enemy squad (lowest hp), keep the rest on \"hold\", and go\nback to holding the moment your alive count stops climbing relative to theirs.\nUse \"flank\" only to close a gap in your own line, never to go around."
+    },
+    "player": "ply_bac48eb1-662e-44f8-973d-f3e016dccf5d"
+  },
+  {
+    "name": "magent-battle-line",
+    "run": "/bin/magent-battle-player",
+    "env": {
+      "PLAYER_SCRIPTED": "line"
+    }
+  },
+  {
+    "name": "magent-battle-pincer",
+    "run": "/bin/magent-battle-player",
+    "env": {
+      "PLAYER_SCRIPTED": "pincer"
+    }
+  }
+]

@@ -1,0 +1,6 @@
+magent-battle player: kind=scripted baseline=pincer label=pincer
+magent-battle player: connected
+magent-battle player: socket closed (Error receiving WebSocket frame)
+magent-battle player: re-dialling the seat (attempt 1)
+magent-battle player: game not listening yet (Connection refused); retrying
+magent-battle player: game is no longer listening, exiting cleanly

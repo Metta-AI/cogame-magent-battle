@@ -1,0 +1,7 @@
+{
+  "swept": "tools/tune_baselines.nim --sweep",
+  "note": "The head-to-head sweep's pick. tests/test_magent_tuning.nim asserts the shipped DefaultBaselineParams still equal it, so a hand-edit of the defaults fails the build.",
+  "retreatHpTenths": 40,
+  "focusRadius": 3,
+  "flankOffset": 8
+}
