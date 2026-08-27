@@ -185,12 +185,26 @@ proc buildStateJson*(
   ## `chrome_common.js` drives the clock, the transport, the scrubber, the
   ## beats and the momentum graph unchanged. Everything this game adds lives
   ## under `mg`.
-  let startFrame =
-    if player.gameStartFrames.len > 0: player.gameStartFrames[0] else: 0
+  ##
+  ## LIVE mode has no `ReplayPlayer`: the developer page at `/client/replay`
+  ## gets its transport axis from the SIM clock (`tick` of `maxTicks`) instead
+  ## of from a default-initialised player, which used to render a static `0 / 1`
+  ## playhead. The pre-scanned series (`lulls`, `beats`, `lead`) only exist for
+  ## a recorded episode, so live they are OMITTED rather than shipped empty --
+  ## an empty `lead` object would disable `chrome_common`'s
+  ## accumulate-as-played momentum fallback, which is what a live match wants.
+  let
+    startFrame =
+      if player.gameStartFrames.len > 0: player.gameStartFrames[0] else: 0
+    axisTick = if live: sim.tick else: max(0, player.frame - 1)
+    axisStart = if live: 0 else: startFrame
+    axisMax =
+      if live: max(1, sim.config.maxTicks)
+      else: max(startFrame + 1, player.maxFrame)
   var node = %*{
-    "t": max(0, player.frame - 1),
-    "st": startFrame,
-    "mx": max(startFrame + 1, player.maxFrame),
+    "t": axisTick,
+    "st": axisStart,
+    "mx": axisMax,
     "mt": sim.config.maxTicks,
     "ph": phaseText(sim.phase),
     "lob": max(0, sim.config.lobbyJoinTimeoutTicks - sim.lobbyTicks),
@@ -222,7 +236,7 @@ proc buildStateJson*(
       "events": events
     }
   }
-  if not tracker.sentOnce:
+  if not tracker.sentOnce and not live:
     tracker.sentOnce = true
     node["lulls"] = player.lullsJson()
     node["beats"] = player.beatsJson()
