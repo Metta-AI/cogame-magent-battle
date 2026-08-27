@@ -349,6 +349,67 @@ jobs:
               raise SystemExit(f"upload-coworld exited {rc}")
           PY
 
+      - name: Settle the canonical flag
+        # `upload-coworld` prints `Canonical:` out of the upload RESPONSE, which
+        # the CLI captures as soon as the hosted smoke passes -- while the hosted
+        # certification is still running ("Hosted certification: certifying").
+        # The flag only flips to canonical once that certification finishes, so
+        # for a Coworld whose episodes take minutes the printed value is a
+        # snapshot taken too early, not the outcome. Observed twice here: runs
+        # 33059319661 (0.1.0) and 33059802649 (0.1.1) both printed
+        # `Canonical: no` while /coworlds reported the same row canonical
+        # minutes later. Poll the server for the settled value.
+        env:
+          SOFTMAX_TOKEN: ${{ secrets.SOFTMAX_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "Settle the canonical flag" > "$RR/current_step"
+          python3 - "$RR" <<'PY'
+          import json, os, sys, time, urllib.request
+
+          rr = sys.argv[1]
+          upload = json.load(open(f"{rr}/upload.json"))
+          cow_id = upload.get("cow_id")
+          if not cow_id:
+              print("no cow_id in the upload output; nothing to settle")
+              raise SystemExit(0)
+
+          url = "https://softmax.com/api/observatory/v2/coworlds?limit=200"
+          headers = {
+              "Authorization": f"Bearer {os.environ['SOFTMAX_TOKEN']}",
+              "User-Agent": "cogame-magent-battle-release/1.0",
+          }
+
+          def canonical_now():
+              req = urllib.request.Request(url, headers=headers)
+              with urllib.request.urlopen(req, timeout=60) as resp:
+                  body = json.load(resp)
+              rows = body if isinstance(body, list) else body.get("entries", [])
+              for row in rows:
+                  if row.get("id") == cow_id:
+                      return bool(row.get("canonical"))
+              return None
+
+          deadline = time.time() + 1200
+          settled = None
+          while True:
+              try:
+                  settled = canonical_now()
+              except Exception as exc:      # degrade-never-hang: keep polling
+                  print(f"poll failed ({exc}); retrying")
+              print(f"{cow_id} canonical={settled}")
+              if settled or time.time() >= deadline:
+                  break
+              time.sleep(15)
+
+          if settled is None:
+              print(f"::warning::{cow_id} is not listed on /coworlds; keeping the upload's value")
+              raise SystemExit(0)
+          upload["canonical"] = "yes" if settled else "no"
+          upload["canonical_source"] = "GET /v2/coworlds after the upload"
+          json.dump(upload, open(f"{rr}/upload.json", "w"), indent=2)
+          PY
+
       - name: Put the Coworld secret
         # AFTER upload-coworld: the secret namespace is the Coworld's.
         if: ${{ inputs.put_secret != false }}
