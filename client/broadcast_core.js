@@ -1,12 +1,29 @@
 // broadcast_core.js — magent-battle board renderer and state channel.
 //
-// Forked from coworld-ctf/client/broadcast_core.js. KEPT, function for
-// function: the module shape (a dependency-free IIFE publishing
-// `window.BroadcastCore.create`), the canvas/DPR sizing, the whole-board
-// camera, the status/text callback contract, the feed queue and `pushFeed`'s
-// SIGNATURE, the beat and lull plumbing, the `?embed=1` path, the websocket
-// mode the native server page uses, and the `getPaceStats()` shape the static
-// adapter mirrors. The starter's wire-constants global read is renamed to
+// Forked from coworld-ctf/client/broadcast_core.js, but a RETARGETED REWRITE,
+// not a line-for-line fork: the starter's 1,407 lines are built around the
+// Bitworld sprite protocol, vendored SnappyJS and an interpolating pixel
+// camera, and none of that survives an integer cell grid. No proc here is
+// byte-identical to the starter's. What IS kept is the CONTRACT the
+// surrounding chrome and the static adapter call through, method for method:
+//
+//   * the module shape -- a dependency-free IIFE publishing
+//     `window.BroadcastCore.create`;
+//   * every method `replay-viewer/static_replay_worker.js` and
+//     `client/page_script.js` invoke: start/stop/ingest/sendCommand/clickMap,
+//     zoomAt/setZoom/panBy/panByMap/panTo/resetView/attachMinimap (deliberate
+//     no-ops for a fixed board), getTransform/setViewportSize/setViewportFit,
+//     getState, getPaceStats;
+//   * the callback contract (onText/onStatus/onFirstFrame/onTransform/
+//     onSendPacket), the canvas/DPR sizing, the whole-board camera;
+//   * the `getPaceStats()` shape `static_replay.js` mirrors
+//     ({enabled, queued, presented, interval, draws});
+//   * `pushFeed(text)`'s SIGNATURE, because the static adapter latches on a
+//     throw from it (cogball 0.1.4) -- the ONE name in this file whose shape,
+//     not whose body, is the inherited thing;
+//   * the websocket mode the native server page uses, and the `?embed=1` path.
+//
+// The starter's wire-constants global read is renamed to
 // `window.MAGENT_WIRE`, emitted by tools/gen_wire_constants.nim.
 //
 // DELETED: the Bitworld sprite-protocol compositor and every ctf-specific
@@ -16,6 +33,11 @@
 // frame instead of a binary sprite stream.
 //
 // ADDED: drawBattlefield, drawHeat, drawFrontLine.
+//
+// NOT HERE: text. This core draws chips, heat bins, scorch marks and a chalk
+// polyline and calls `fillText` nowhere; every string the spectator reads is a
+// DOM node in the inherited page's own layout, built by the appended game
+// block from the same `mg.events` array.
 //
 // The native replay page runs this core in a Window. The static bundle runs
 // the SAME file in a Dedicated Worker with an OffscreenCanvas. One
@@ -139,9 +161,12 @@
     };
 
     // ---- the feed queue -----------------------------------------------------
-    // pushFeed's SIGNATURE is load-bearing: a drift here threw mid-replay and
-    // latched the static adapter into `failed` with the scrubber still
-    // seekable, so every static gate passed (cogball 0.1.4).
+    // Kept for its SHAPE, not for rows of its own: pushFeed's signature is
+    // load-bearing because a drift in it threw mid-replay and latched the
+    // static adapter into `failed` with the scrubber still seekable, so every
+    // static gate passed (cogball 0.1.4), and getPaceStats().queued reports
+    // this queue's depth to `static_replay.js`. The rows the spectator reads
+    // are DOM, built by the appended game block.
     var paceQueue = [];
     function pushFeed(text) {
       if (text === undefined || text === null) return;
@@ -413,32 +438,6 @@
       draws++;
     }
 
-    function feedEventText(event, s) {
-      var seats = (s.mg && s.mg.seats) || [];
-      function alias(slot) {
-        return (seats[slot] && seats[slot].alias) || ('SEAT ' + slot);
-      }
-      switch (event.k) {
-        case 'order':
-          return alias(event.slot) + ' ' + event.squad + ' \u2192 ' +
-            event.verb + (event.arg ? ' ' + event.arg : '');
-        case 'say':
-          return (seats[event.slot] ? seats[event.slot].alias : 'SEAT') +
-            ': "' + event.text + '"';
-        case 'fallback':
-          return alias(event.slot) + ' MISSED THE CALL \u2014 scripted orders (' +
-            event.cause + ')';
-        case 'firstblood':
-          return 'FIRST BLOOD \u2014 ' + alias(event.slot);
-        case 'rout':
-          return alias(event.army) + " IS ROUTED \u2014 " + event.lost + ' DOWN';
-        case 'wipe':
-          return alias(event.army) + ' IS WIPED OUT';
-        default:
-          return '';
-      }
-    }
-
     function ingest(bytes) {
       var text;
       if (typeof bytes === 'string') text = bytes;
@@ -456,11 +455,11 @@
           army: deaths[i].v });
       }
       while (scorch.length > 600) scorch.shift();
-      var events = (state.mg && state.mg.events) || [];
-      for (var e = 0; e < events.length; e++) {
-        var row = feedEventText(events[e], state);
-        if (row) pushFeed(row);
-      }
+      // The visible feed is DOM, built by the appended game block from this
+      // same `mg.events` array (client/game_block.html). The core formats no
+      // rows of its own: the page's onText IS its JSON frame parser, so a
+      // plain-text row handed to it is parsed, fails and is dropped. One
+      // vocabulary, in one place.
       // The state object itself is handed to the page as one text payload; the
       // page parses it once and drives the chrome.
       onText(text);
