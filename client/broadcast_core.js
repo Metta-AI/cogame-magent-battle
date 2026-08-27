@@ -502,7 +502,14 @@
     function start() {
       if (running) return;
       running = true;
-      loadAssets().then(function () { draw(); });
+      loadAssets().then(function () {
+        draw();
+        // The static bundle has no socket, so nothing would ever move the
+        // status chip off 'connecting' and the featured match would show
+        // CONNECTING over a playing replay for the whole episode. Assets baked
+        // and the first frame drawn IS this delivery mode's 'open'.
+        if (!config.websocket) onStatus('open');
+      });
       if (config.websocket) connect();
       requestFrame(tick);
     }
