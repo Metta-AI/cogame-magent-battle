@@ -156,6 +156,13 @@ proc applyReplayChat*(sim: var SimServer, text: string) =
     if slot >= 0 and slot < SeatCount:
       sim.seatPolicyKind[slot] = node{"kind"}.getStr("scripted")
       sim.seatPolicyLabel[slot] = node{"policy"}.getStr()
+      # Mirror the server: the scorebug shows the seat's REAL policy name
+      # (spectator side only), and a locally-run config names its seats with
+      # the anonymous alias, so the registration label is the better name
+      # whenever the join record carried only the alias.
+      if sim.seatPolicyLabel[slot].len > 0 and
+          sim.seatNames[slot] == seatAlias(slot):
+        sim.seatNames[slot] = sim.seatPolicyLabel[slot]
   of "fallback":
     if slot >= 0 and slot < SeatCount and node{"attempt"}.getInt(1) == 2:
       inc sim.fallbackTurns[slot]

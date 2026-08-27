@@ -188,6 +188,11 @@ jobs:
           text = json.dumps(template).replace(
               "{{MAGENT_BATTLE_IMAGE}}", "coworld-magent-battle:latest")
           manifest = json.loads(text)
+          # `coworld build --version X` injects game.version, so a TEMPLATE
+          # manifest has none and the validator's "game.version Field required"
+          # would be an artefact of validating the wrong artifact. Inject the
+          # same field the build does.
+          manifest["game"]["version"] = "0.0.0-ci"
           from coworld import manifest as coworld_manifest
           errors = []
           for name in ("validate_upload_manifest", "_load_template_manifest",

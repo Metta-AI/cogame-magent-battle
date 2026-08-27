@@ -1,4 +1,4 @@
-## The wasm replay entry. Keeps coworld-ctf's `ctf_replay.nim` structure
+## The wasm replay entry. Keeps the starter's wasm-entry structure
 ## exactly: the `stampStage` fixed progress buffer that survives an allocation
 ## abort, `bytesFromPointer`, the try/except publishing `lastError`, and the
 ## `emscripten_exit_with_live_runtime()` epilogue that stops Nim's generated

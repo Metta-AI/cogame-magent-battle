@@ -309,3 +309,24 @@ suite "magent viewer":
     for label in emittedLabels():
       check label.len <= 10
       check "daveey" notin label
+
+  test "the ctf rename sweep is complete":
+    ## The fork is a rename sweep (`ctf` -> `magent`, `CTF_WIRE` ->
+    ## `MAGENT_WIRE`). A surviving `ctf_` identifier is not cosmetic: the
+    ## viewer shipped once with `Module._ctf_mismatch_tick` in the Worker, which
+    ## loaded the module, drew the board and THEN threw on the first frame.
+    for path in ["replay-viewer/static_replay.js",
+                 "replay-viewer/static_replay_worker.js",
+                 "replay-viewer/magent_replay.nim",
+                 "replay-viewer/config.nims",
+                 "client/broadcast_core.js",
+                 "client/page_script.js",
+                 "client/game_block.html",
+                 "Dockerfile",
+                 "Dockerfile.replay-viewer"]:
+      let text = readRepoFile(path)
+      for token in ["_ctf_", "ctf_replay", "CtfStaticReplay", "CTF_WIRE",
+                    "src/ctf", "ctf/sim"]:
+        if token in text:
+          checkpoint(path & " still carries the ctf identifier " & token)
+          fail()

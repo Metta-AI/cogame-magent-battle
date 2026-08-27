@@ -6,7 +6,7 @@
 // camera, the status/text callback contract, the feed queue and `pushFeed`'s
 // SIGNATURE, the beat and lull plumbing, the `?embed=1` path, the websocket
 // mode the native server page uses, and the `getPaceStats()` shape the static
-// adapter mirrors. The `window.CTF_WIRE` read is renamed to
+// adapter mirrors. The starter's wire-constants global read is renamed to
 // `window.MAGENT_WIRE`, emitted by tools/gen_wire_constants.nim.
 //
 // DELETED: the Bitworld sprite-protocol compositor and every ctf-specific

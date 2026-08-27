@@ -127,7 +127,7 @@ async function start() {
     ingestPacket();
     postMessage({
       type: 'loaded',
-      mismatchTick: Module._ctf_mismatch_tick()
+      mismatchTick: Module._magent_mismatch_tick()
     });
   } catch (error) {
     reportFailure(error);
@@ -149,7 +149,7 @@ function applyInputNow() {
     ingestPacket();
     postMessage({
       type: 'inputApplied',
-      mismatchTick: Module._ctf_mismatch_tick()
+      mismatchTick: Module._magent_mismatch_tick()
     });
   } catch (error) {
     reportFailure(error);
@@ -166,7 +166,7 @@ function advance(frames) {
     }
     postMessage({
       type: 'advanced',
-      mismatchTick: Module._ctf_mismatch_tick(),
+      mismatchTick: Module._magent_mismatch_tick(),
       // Presentation stat for the page (the core draws over here, a thread
       // away): total frames blitted, so the page can read draws-per-second.
       draws: core ? core.getPaceStats().draws : 0
