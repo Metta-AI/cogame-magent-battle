@@ -102,6 +102,21 @@ proc truncateRunes*(text: string, limit: int): string =
     return text
   text.runeSubStr(0, limit)
 
+proc truncateBytes*(text: string, limit: int): string =
+  ## Cuts `text` to at most `limit` BYTES, never mid-codepoint. For the one cap
+  ## that is genuinely a byte budget -- how much of a provider reply is read
+  ## before parsing -- where a rune cap would admit up to four times the bytes.
+  ## Trailing continuation bytes are dropped rather than kept, so the result is
+  ## always valid UTF-8 if the input was.
+  if limit <= 0:
+    return ""
+  if text.len <= limit:
+    return text
+  var cut = limit
+  while cut > 0 and (ord(text[cut]) and 0xC0) == 0x80:
+    dec cut
+  text[0 ..< cut]
+
 proc sanitizeLine*(text: string, limit: int): string =
   ## A recorded free-text field: newlines collapse to spaces so one record
   ## stays one line, then the rune cap applies on a rune boundary.

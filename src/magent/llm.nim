@@ -180,7 +180,10 @@ proc textOf*(
       response.body.truncateRunes(MaxFallbackDetailRunes))
   var body = response.body
   if body.len > MaxReplyBytes:
-    body = body.truncateRunes(MaxReplyBytes)
+    ## MaxReplyBytes is a BYTE budget, so the cut is a byte cut -- landed on a
+    ## codepoint boundary, never mid-rune. `truncateRunes` here would admit up
+    ## to 4 x 8192 bytes of a multi-byte body into parseJson.
+    body = body.truncateBytes(MaxReplyBytes)
   let payload = parseJson(body)
   if payload{"stop_reason"}.getStr() == "refusal":
     raise newException(LlmError, "anthropic refusal")

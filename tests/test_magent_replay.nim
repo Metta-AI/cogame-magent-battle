@@ -243,6 +243,28 @@ suite "magent replay":
     removeFile(path)
     removeFile(summaryPath)
 
+  test "the reply byte cap cuts bytes on a codepoint boundary":
+    ## MaxReplyBytes is how much of a PROVIDER reply is read before parsing, so
+    ## it is a byte budget: a rune cut there admits up to 4 x 8192 bytes into
+    ## parseJson (r1 review F7). truncateBytes is the byte cut that still lands
+    ## on a codepoint boundary.
+    var emoji = ""
+    while emoji.len <= MaxReplyBytes * 2:
+      emoji.add("\u{1F525}")            ## 4 bytes each
+    let cut = emoji.truncateBytes(MaxReplyBytes)
+    check cut.len <= MaxReplyBytes
+    check cut.len > MaxReplyBytes - 4   ## as much as fits, not less
+    check cut.validateUtf8() == -1
+    check cut.runeLen == cut.len div 4
+    ## a 3-byte codepoint straddling the cap is dropped whole, not halved
+    var mixed = "x".repeat(MaxReplyBytes - 1) & "\u20AC" & "tail"
+    let cutMixed = mixed.truncateBytes(MaxReplyBytes)
+    check cutMixed.len == MaxReplyBytes - 1
+    check cutMixed.validateUtf8() == -1
+    ## short input, and the degenerate limits, are identities
+    check "hello".truncateBytes(MaxReplyBytes) == "hello"
+    check "hello".truncateBytes(0) == ""
+
   test "every committed fixture carries the current GameVersion":
     ## The starter's sweep over tests/, kept: a fixture recorded against older
     ## rules fails HERE rather than three CI jobs later.
