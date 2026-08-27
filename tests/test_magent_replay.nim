@@ -183,6 +183,30 @@ suite "magent replay":
         check results["policyKinds"].len == SeatCount
     check sawResult
 
+  test "playback opens at the game start, never the recorded lobby":
+    ## A ladder episode records the pre-game lobby (seats joining, LLM
+    ## registration) before its gameStart record -- 270 frozen frames on a real
+    ## prod replay -- and the viewer used to dwell through them at 6 fps: ~45 s
+    ## stuck on the first tick until someone scrubbed. Playback must open AT
+    ## the game-start frame, and every seek must clamp there, matching the
+    ## scrubber axis that already spans [startFrame, maxFrame].
+    var config = testConfig(mapSize = 31, maxTicks = 60, maxGames = 1)
+    config.lobbyJoinTimeoutTicks = 24
+    let run = runScriptedEpisode(config, joinSeats = {})
+    var data = parseReplayBytes(run.bytes)
+    check data.gameStarts.len >= 1
+    check data.gameStarts[0].tick >= 24
+    var
+      initialized = initReplayRuntime(data)
+      player = initialized.player
+      sim = initialized.sim
+    check player.startFrame == data.gameStarts[0].tick
+    check player.frame == player.startFrame + 1
+    check sim.phase != Lobby
+    player.seekTo(sim, 0)
+    check player.frame == player.startFrame + 1
+    check sim.phase != Lobby
+
   test "replay_summary is strict UTF-8 JSON":
     ## Every capped field filled to EXACTLY its cap with 4-byte emoji, then read
     ## back through the stdlib-only Python view of the bytes.

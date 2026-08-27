@@ -60,6 +60,18 @@ type
 proc playbackSpeed*(player: ReplayPlayer): int =
   PlaybackSpeeds[clamp(player.speedIndex, 0, PlaybackSpeeds.high)]
 
+proc startFrame*(player: ReplayPlayer): int =
+  ## The first game-start frame. Everything before it is the recorded pre-game
+  ## lobby (seats joining, LLM registration) with the board frozen at tick 0.
+  ## The scrubber axis already begins here (`st` in buildStateJson), so
+  ## playback opens here and every seek clamps here -- dwelling on the lobby
+  ## held the hosted viewer on its first tick for gameStarts[0].tick / 6
+  ## seconds (~45 s on a real ladder episode) before anything moved.
+  if player.gameStartFrames.len > 0:
+    min(player.gameStartFrames[0], player.maxFrame)
+  else:
+    0
+
 proc resetCursors(player: var ReplayPlayer) =
   player.frame = 0
   player.orderCursor = 0
@@ -208,14 +220,15 @@ proc initReplayRuntime*(
   result.player.resetCursors()
   result.player.hashMismatchTick = -1
   result.sim = initSimServer(result.config)
-  runFrame(result.player, result.sim)
+  while result.player.frame <= result.player.startFrame:
+    runFrame(result.player, result.sim)
 
 proc seekTo*(player: var ReplayPlayer, sim: var SimServer, frame: int) =
   ## Seeks by re-simulating from frame 0. A couple of hundred integer frames
   ## is microseconds, so a fresh re-derivation is both the simplest and the
   ## most trustworthy seek: the state a viewer scrubs to is always the state
   ## the recorded orders produce.
-  let target = clamp(frame, 0, player.maxFrame)
+  let target = clamp(frame, player.startFrame, player.maxFrame)
   let keepMismatch = player.hashMismatchTick
   player.resetCursors()
   player.hashMismatchTick = -1
