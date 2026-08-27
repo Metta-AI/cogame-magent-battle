@@ -48,12 +48,30 @@
     runes.length = 118;
     return runes.join('') + '\u{1F6E1}\u{1F525}';
   })();
+  var CAP_SAY_RUNES = 120;
   var LONG_NAME = 'magent-battle-vanguard-with-a-very-long-policy-name';
 
   function fail(message) {
     document.documentElement.setAttribute('data-replay-error', message);
     document.getElementById('report').textContent = 'fixture FAILED: ' + message;
     throw new Error(message);
+  }
+
+  // THE FIXTURE'S OWN STRINGS ARE UNDER TEST TOO. One quietly shortened remark
+  // leaves everything below passing while testing nothing (checklist item 15),
+  // so the worst case is asserted to still BE the worst case before it is ever
+  // rendered: full cap, in runes, ending on the two 4-byte emoji.
+  if (Array.from(CAP_SAY).length !== CAP_SAY_RUNES) {
+    fail('the fixture\'s own commander line is ' +
+      Array.from(CAP_SAY).length + ' runes, not the ' + CAP_SAY_RUNES +
+      '-rune cap it is supposed to drive');
+  }
+  if (!/\u{1F6E1}\u{1F525}$/u.test(CAP_SAY)) {
+    fail('the fixture\'s commander line no longer ends on the cap-straddling ' +
+      'emoji pair');
+  }
+  if (LONG_NAME.length < 40) {
+    fail('the fixture\'s policy name is too short to crowd a 360px plate');
   }
 
   function replayUrl() {
@@ -147,6 +165,20 @@
       }
       if (box.top < -1 || box.left < -1) {
         fail('the commander line was laid out off-frame at ' + width + 'px');
+      }
+      // ...and the row still carries the WHOLE remark. A box of the right size
+      // holding a shortened sentence is the failure this catches: DOM ellipsis
+      // is visual, so textContent is still the full string unless something on
+      // the path cut it.
+      var sayText = sayRow.textContent || '';
+      if (sayText.indexOf(CAP_SAY) < 0) {
+        var quoteAt = sayText.indexOf('\u201c');
+        var shown = quoteAt >= 0
+          ? sayText.slice(quoteAt + 1, sayText.lastIndexOf('\u201d'))
+          : sayText;
+        fail('the rendered commander line is not the full-cap string at ' +
+          width + 'px: ' + Array.from(shown).length + ' of ' + CAP_SAY_RUNES +
+          ' runes reached the feed');
       }
       var name = doc.getElementById('pname-0');
       if (name) {
