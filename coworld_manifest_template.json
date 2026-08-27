@@ -111,7 +111,7 @@
         "retryMs": {"type": "integer", "minimum": 1000, "maximum": 30000, "default": 4000},
         "wallClockBudgetSeconds": {
           "type": "integer",
-          "description": "The engine's own hard stop, 55 percent of the assumed 1200 s episode timeout. Never above 660.",
+          "description": "The engine's own hard stop, in seconds: 660 is 55 percent of the assumed 1200 s episode timeout, which leaves the whole episode (worst case ~615 s of play, and at most 17 s more to serve a stop that lands mid-turn) inside the 60 percent / 720 s settle target. Never above 660.",
           "minimum": 10,
           "maximum": 660,
           "default": 660
