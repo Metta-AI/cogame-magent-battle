@@ -93,3 +93,21 @@ The `skirmish` variant name and description carry 30.
 
 Upstream defaults (`False` / `False`) are kept. The commander's fog-of-war
 summary replaces them; no seat ever receives the 13x13x5 observation tensor.
+
+## 9. Playback is 8 SIM TICKS A SECOND, and the speed chips are `[1,2,4,8]`
+
+The design note specified "1 tick per animation frame at 30 fps (speed chips
+`[0.5, 1, 2, 4, 8]`, default 1)", i.e. a 600-tick episode playing for 20 s.
+What ships is `replay_runtime.TicksPerSecondBase = 8`: `advanceReplayFrame`
+adds `speed * 8` to an integer accumulator every presentation frame and runs
+one sim frame per `TargetFps` (30) accumulated, capped at 8 frames a call.
+`PlaybackSpeeds = [1, 2, 4, 8]` and `applyCommand` maps the keys `1/2/4/8`, so
+there is no 0.5 chip.
+
+One MAgent cycle is a whole exchange of blows and a decided game runs 30-60
+ticks, so one tick per animation frame flashes a whole episode past in four
+seconds -- which is exactly what the note's own reason for the rate (a soak
+must observe advancement rather than a finished replay) needs not to happen. At
+8 ticks/s the CI replay (123 frames) plays for ~15 s and a full 600-tick
+episode for ~75 s. `TargetFps` stays 30 because it is still the presentation
+rate and the accumulator's denominator.

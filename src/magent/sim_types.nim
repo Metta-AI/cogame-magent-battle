@@ -38,9 +38,10 @@ const
     ## of a pool mid-episode.
 
   TargetFps* = 30
-    ## Playback rate: one tick per animation frame at 30 fps, so 600 ticks of
-    ## episode play for 20 s -- long enough for `viewer_smoke --soak 10` to
-    ## observe real advancement.
+    ## Presentation frame rate, and the denominator of the playback
+    ## accumulator. The SIM rate is `replay_runtime.TicksPerSecondBase` (8
+    ## ticks a second at speed 1), NOT one tick per frame: see
+    ## `vendor/PATCHES.md` section 9 for why, and what it means for the soak.
   PlaybackSpeeds* = [1, 2, 4, 8]
 
   ReasonComplete* = "complete"
