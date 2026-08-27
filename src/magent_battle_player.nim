@@ -17,9 +17,10 @@
 ##   coworld upload-policy <magent-battle-image> --name my-magent \
 ##     --run /bin/magent-battle-player --secret-env PLAYER_PROMPT="<strategy>"
 
-import std/[json, options, os, strutils, unicode]
+import std/[json, options, os, strutils]
 import bitworld/spriteprotocol
 import whisky
+import magent/sim_types
 
 const
   ConnectAttempts = 240      ## 240 x 500 ms = 2 minutes of dialling.
@@ -27,17 +28,11 @@ const
   RegistrationResends = 10   ## re-sends after the first, ~1 s apart.
   ResendEveryFrames = 24
   ReconnectAttempts = 6
-  MaxPromptRunes = 4000
-  MaxPolicyLabelRunes = 64
 
-proc truncateRunes(text: string, limit: int): string =
-  ## RUNE boundaries, never byte indices: a half-codepoint renders in a
-  ## browser and then fails a strict UTF-8 parser.
-  if limit <= 0:
-    return ""
-  if text.runeLen <= limit:
-    return text
-  text.runeSubStr(0, limit)
+## The two caps below come from `magent/sim_types` -- the SAME constants and the
+## SAME rune-boundary `truncateRunes` the server enforces them with. They were
+## re-declared here once, which meant 4000/64 existed twice and could drift
+## (r1 review F15).
 
 proc registrationBlob(prompt, scripted, policy: string): string =
   ## The one registration message. `scripted` is JSON null when the seat is an
