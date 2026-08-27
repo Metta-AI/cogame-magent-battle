@@ -3,4 +3,8 @@ nimcache/
 dist/
 *.exe
 replay-viewer/dist/
+# nim.cfg is a LOCAL artifact: `nimby --global sync` writes the package paths
+# of whatever machine ran it, ci.yml regenerates it from the runner's tree, and
+# .dockerignore keeps it out of the image build context. Never commit it.
 nim.cfg
+p*.log
