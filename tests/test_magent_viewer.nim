@@ -105,6 +105,22 @@ suite "magent viewer":
     check repoFileExists("client/page_script.js")
     check repoFileExists("client/game_block.html")
 
+  test "the inherited page prefix is byte-pinned":
+    ## `tools/build_broadcast_page.py` is the provenance record -- it rebuilds
+    ## this page from the read-only starter and the committed page compares
+    ## equal -- but it needs the starter MOUNT, and a CI runner has none. So
+    ## nothing on main would catch a hand-edit of the inherited page above the
+    ## splice. Pin that region (everything before the forked page IIFE) by its
+    ## own length and SHA-1: an edit there fails HERE, and the fix is to
+    ## re-run the builder against the starter, not to re-pin the literals.
+    let page = pageText()
+    let scriptOpen = page.find(
+      "<script>", page.find("<!-- BROADCAST_CORE -->"))
+    check scriptOpen > 0
+    let inherited = page[0 ..< scriptOpen]
+    check inherited.len == 60731
+    check $secureHash(inherited) == "753E95A58A73072D58E8CA1FC4B2293AB6256395"
+
   test "the removed elements appear nowhere":
     ## Zoom decision: DROPPED. The board is a fixed square grid with a 1:1
     ## aspect and no off-frame area, so relayout() fits it whole at every width
