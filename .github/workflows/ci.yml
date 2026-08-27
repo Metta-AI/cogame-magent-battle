@@ -192,7 +192,7 @@ jobs:
           # manifest has none and the validator's "game.version Field required"
           # would be an artefact of validating the wrong artifact. Inject the
           # same field the build does.
-          manifest["game"]["version"] = "0.0.0-ci"
+          manifest["game"]["version"] = "0.1.0"
           from coworld import manifest as coworld_manifest
           errors = []
           for name in ("validate_upload_manifest", "_load_template_manifest",

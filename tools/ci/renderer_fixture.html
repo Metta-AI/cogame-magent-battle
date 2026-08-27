@@ -73,14 +73,17 @@
       { slot: 1, alias: 'BRAVO', name: LONG_NAME + '-2', side: 'blue',
         alive: 12, kills: 99, fallbacks: 0, kind: 'llm', reward: '-238.09' }
     ];
+    // The feed keeps only its newest few rows and pushFeed inserts at the TOP,
+    // so the worst-case commander lines go LAST: they are the strings under
+    // test and they must survive the trim.
     s.mg.events = [
-      { k: 'say', slot: 0, text: CAP_SAY },
-      { k: 'say', slot: 1, text: CAP_SAY },
       { k: 'order', slot: 0, squad: 'A3', verb: 'focus', arg: 'B5' },
       { k: 'order', slot: 1, squad: 'B7', verb: 'retreat', arg: '' },
       { k: 'fallback', slot: 1, cause: 'timeout' },
       { k: 'firstblood', slot: 0, unit: 3, victim: 90 },
-      { k: 'rout', army: 1, lost: 14 }
+      { k: 'rout', army: 1, lost: 14 },
+      { k: 'say', slot: 1, text: CAP_SAY },
+      { k: 'say', slot: 0, text: CAP_SAY }
     ];
     s.width = width;
     return s;
@@ -129,11 +132,14 @@
       var feed = doc.getElementById('killfeed');
       var rows = feed ? feed.querySelectorAll('.feed-row') : [];
       if (!rows.length) fail('no feed row was rendered at ' + width + 'px');
-      var sayRow = null;
-      for (var i = 0; i < rows.length; i++) {
-        if (rows[i].querySelector('.mg-say')) sayRow = rows[i];
+      var sayRow = feed.querySelector('.mg-say');
+      if (sayRow) sayRow = sayRow.parentNode;
+      if (!sayRow) {
+        var seen = [];
+        for (var i = 0; i < rows.length; i++) seen.push(rows[i].className);
+        fail('the commander line never reached the feed at ' + width +
+          'px (rows: ' + seen.join(' | ') + ')');
       }
-      if (!sayRow) fail('the commander line never reached the feed at ' + width);
       var box = sayRow.getBoundingClientRect();
       if (box.width < 20 || box.height < 6) {
         fail('the commander line laid out as a sliver at ' + width + 'px: ' +
