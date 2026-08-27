@@ -48,13 +48,19 @@ suite "magent engine":
     check run.sim.deadSeats[1]
     check not run.sim.deadSeats[0]
     check run.state.failureSlot == 1
-    ## exactly the platform's two keys, and nothing else
-    let payload = %*{
-      "message": "player slot 1 never joined", "failed_policy_index": 1}
+    ## exactly the platform's two keys, and nothing else -- asserted against the
+    ## payload the SERVER writes (roster.playerFailurePayload, called by
+    ## server.declarePlayerFailure), not against a literal this test builds
+    let payload = parseJson(playerFailurePayload(
+      run.state.failureSlot,
+      "player slot 1 never joined the lobby within 1 lobby ticks; its army " &
+      "plays the pincer baseline"))
     var keys: HashSet[string]
     for key, _ in payload.pairs:
       keys.incl(key)
     check keys == ["message", "failed_policy_index"].toHashSet()
+    check payload["failed_policy_index"].getInt() == 1
+    check payload["message"].getStr().len > 0
     ## and every turn of the empty seat is recorded with cause `disconnected`,
     ## so a replay reader can tell "nobody was home" from "a scripted filler
     ## was seated" (r1 review F8)

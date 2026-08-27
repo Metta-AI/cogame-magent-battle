@@ -127,6 +127,13 @@ proc resultRecord*(sim: SimServer): string =
   ## path to the artifact writes may raise.
   "{\"k\":\"result\",\"results\":" & sim.armyResultsJson() & "}"
 
+proc playerFailurePayload*(slot: int, message: string): string =
+  ## The platform's CLOSED player-failure payload: exactly `message` and
+  ## `failed_policy_index`, nothing else. A third key makes the declaration
+  ## unattributable, so the shape lives HERE, beside the results document, and
+  ## the server writes what a test can read (r1 review F15).
+  $(%*{"message": message, "failed_policy_index": slot})
+
 proc applyJoinRecords*(sim: var SimServer, data: ReplayData) =
   ## Playback: the real seat names come back out of the join records, which is
   ## what lets the scorebug show them spectator-side.

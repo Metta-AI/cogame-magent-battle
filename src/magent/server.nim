@@ -290,12 +290,13 @@ proc serverThreadProc(args: ServerThreadArgs) {.thread.} =
 proc declarePlayerFailure(slot: int, message: string) =
   ## The platform's CLOSED payload -- exactly {"message","failed_policy_index"},
   ## nothing else -- so a lobby no-show is charged to the seat that caused it
-  ## instead of poisoning the episode unattributed. Best-effort: a declaration
-  ## write failure must never mask the episode.
+  ## instead of poisoning the episode unattributed. The payload itself is
+  ## `roster.playerFailurePayload`, which the tests assert against.
+  ## Best-effort: a declaration write failure must never mask the episode.
   try:
     writeCogameEnv(
       "COGAME_PLAYER_FAILURE_URI",
-      $(%*{"message": message, "failed_policy_index": slot}),
+      playerFailurePayload(slot, message),
       "application/json")
   except CatchableError as error:
     echo "player-failure declaration failed: ", error.msg
