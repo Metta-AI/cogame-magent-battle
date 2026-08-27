@@ -469,6 +469,16 @@
     $('ec-team-1').innerHTML = renderEndcardRows(s, 1);
     setName('ec-replay', '');
     el.classList.add('on');
+    // The shared chrome's winner cap (#scrub-win) and WINS chip (#win-chip)
+    // are fed by ingestBeats' `gameover` kind, which this game never emits --
+    // so both ids stayed empty for the whole replay. Feed them here instead,
+    // through the chrome's own documented fallback path ("older servers that
+    // ship no beats still get the verdict once playback reaches the end"), in
+    // this game's vocabulary: the ALIAS takes the pair, never a colour.
+    // setVerdict is idempotent and spoiler-gated by the chrome.
+    setVerdict(card.scores[lead] === card.scores[other]
+      ? { draw: true, t: s.t }
+      : { winner: aliasLead, t: s.t });
   }
 
   // ============================================================
@@ -515,7 +525,14 @@
     else if (k === 'e') send('e');
     else if (k === 'r') send('r');
     else if (k === 'f') send('f');
-    else if (k === 'o') setSpoilers(!getSpoilers());
+    else if (k === 'o') {
+      setSpoilers(!getSpoilers());
+      // the appended block gates its own markers -- and a toggle while paused
+      // has no frame coming to do it
+      if (window.MagentChrome && window.MagentChrome.applySpoilers) {
+        window.MagentChrome.applySpoilers(lastState);
+      }
+    }
     else if (k === 'h' && window.MagentChrome) window.MagentChrome.toggleHeat();
     else if (k >= '1' && k <= '9') send(k);
     else if (k === 'Escape') postToShell('esc');

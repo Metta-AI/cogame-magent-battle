@@ -1525,6 +1525,16 @@ body[data-embed] #board { top: 0; height: 100%; }
     $('ec-team-1').innerHTML = renderEndcardRows(s, 1);
     setName('ec-replay', '');
     el.classList.add('on');
+    // The shared chrome's winner cap (#scrub-win) and WINS chip (#win-chip)
+    // are fed by ingestBeats' `gameover` kind, which this game never emits --
+    // so both ids stayed empty for the whole replay. Feed them here instead,
+    // through the chrome's own documented fallback path ("older servers that
+    // ship no beats still get the verdict once playback reaches the end"), in
+    // this game's vocabulary: the ALIAS takes the pair, never a colour.
+    // setVerdict is idempotent and spoiler-gated by the chrome.
+    setVerdict(card.scores[lead] === card.scores[other]
+      ? { draw: true, t: s.t }
+      : { winner: aliasLead, t: s.t });
   }
 
   // ============================================================
@@ -1571,7 +1581,14 @@ body[data-embed] #board { top: 0; height: 100%; }
     else if (k === 'e') send('e');
     else if (k === 'r') send('r');
     else if (k === 'f') send('f');
-    else if (k === 'o') setSpoilers(!getSpoilers());
+    else if (k === 'o') {
+      setSpoilers(!getSpoilers());
+      // the appended block gates its own markers -- and a toggle while paused
+      // has no frame coming to do it
+      if (window.MagentChrome && window.MagentChrome.applySpoilers) {
+        window.MagentChrome.applySpoilers(lastState);
+      }
+    }
     else if (k === 'h' && window.MagentChrome) window.MagentChrome.toggleHeat();
     else if (k >= '1' && k <= '9') send(k);
     else if (k === 'Escape') postToShell('esc');
@@ -1840,6 +1857,7 @@ button.beat-marker {
   // whole alias list is untouched below this banner.
   var CTX = null;
   var placed = {};          // "tick|kind|side" -> true (dedup)
+  var mgMarkers = [];       // this block's marker buttons (the spoiler gate)
   var beatsPlaced = false;
   var heatOn = true;
 
@@ -1873,6 +1891,26 @@ button.beat-marker {
       CTX.send('s:' + tick);
     });
     scrub.appendChild(el);
+    mgMarkers.push(el);
+  }
+
+  // [spoilers] gate for THIS block's markers. The shared chrome walks only its
+  // own marker list, so with spoilers off its kill/flag markers hide and these
+  // five kinds would still sit on the scrubber ahead of the playhead -- while
+  // the retitled #btn-spoilers tooltip promises "kills / routs / winner on the
+  // timeline ahead of the playhead". Same rule, same tick comparison, applied
+  // to the buttons this block appended.
+  function mgSpoilerGate(s) {
+    if (!s || !CTX || !CTX.C || !CTX.C.getSpoilers) return;
+    var spoilers = CTX.C.getSpoilers();
+    for (var i = 0; i < mgMarkers.length; i++) {
+      var el = mgMarkers[i];
+      var hide = !spoilers && el.__tick > s.t;
+      if (el.__hidden !== hide) {
+        el.__hidden = hide;
+        el.style.display = hide ? 'none' : '';
+      }
+    }
   }
 
   function feedRow(html, cls) {
@@ -1978,6 +2016,7 @@ button.beat-marker {
     placeBeats(s);
     var events = (s.mg && s.mg.events) || [];
     for (var i = 0; i < events.length; i++) mgEvent(events[i], s);
+    mgSpoilerGate(s);
   }
 
   window.MagentChrome = {
@@ -1985,10 +2024,19 @@ button.beat-marker {
       CTX = ctx;
       ensureHeatChip();
       if (ctx && ctx.core && ctx.core.setHeat) ctx.core.setHeat(heatOn);
+      // The toggle can flip while playback is PAUSED, when no frame is coming
+      // to re-run the gate, so re-apply on the click as well.
+      var spoilerBtn = mgId('btn-spoilers');
+      if (spoilerBtn) {
+        spoilerBtn.addEventListener('click', function () {
+          mgSpoilerGate(CTX && CTX.getState ? CTX.getState() : null);
+        });
+      }
     },
     frame: frame,
     toggleHeat: toggleHeat,
-    battleBeat: battleBeat
+    battleBeat: battleBeat,
+    applySpoilers: mgSpoilerGate
   };
 })();
 </script>
