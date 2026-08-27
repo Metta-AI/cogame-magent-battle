@@ -166,7 +166,7 @@ proc scanReplay(player: var ReplayPlayer, config: GameConfig) =
       if turnAliveKnown:
         for seat in 0 ..< SeatCount:
           let lost = lastTurnAlive[seat] - sim.survivors(seat)
-          if lost >= 10:
+          if lost >= RoutLostThreshold:
             player.beats.add(Beat(
               tick: frame, kind: "rout",
               side: sim.sideOfSeat(seat),

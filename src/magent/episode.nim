@@ -87,6 +87,7 @@ proc runTurnIfDue*(
   if turnKey == state.lastTurnKey:
     return
   state.lastTurnKey = turnKey
+  sim.emitEvent(TurnStart, amount = turnIndex)
   state.turnRecords = engine.turn(sim, turnIndex, elapsedSeconds)
   inc sim.turnsPlayed
   for record in state.turnRecords:
@@ -95,8 +96,15 @@ proc runTurnIfDue*(
     let directive = sim.directives[seat]
     case directive.source
     of dsLlm: inc sim.llmTurns[seat]
-    of dsFallback: inc sim.fallbackTurns[seat]
+    of dsFallback:
+      inc sim.fallbackTurns[seat]
+      sim.emitEvent(Fallback, source = seat, amount = turnIndex)
     of dsScripted: discard
+    ## `lostLastTurn` was refreshed at the top of `engine.turn`, so this is the
+    ## army's losses since the PREVIOUS command turn -- the same rout rule the
+    ## feed and the scrubber beat use.
+    if sim.lostLastTurn[seat] >= RoutLostThreshold:
+      sim.emitEvent(Rout, source = seat, amount = sim.lostLastTurn[seat])
     writer.writeOrders(
       state.frame, sim.gameIndex + 1, turnIndex, seat, directive.orders)
     writer.writeChat(state.frame, seat, directive.boundedDirectiveRecord(

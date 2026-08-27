@@ -32,6 +32,11 @@ const
 
   SquadCount* = 9
   SeatCount* = 2
+  RoutLostThreshold* = 10
+    ## An army that lost this many soldiers since the previous command turn is
+    ## ROUTED: the threshold behind the `rout` feed event, the `rout` scrubber
+    ## beat and the tier-2 `Rout` analysis event, in one place so the three
+    ## cannot disagree.
   MaxUnits* = 400
     ## Sprite/object pool ceiling. 45x45 spawns 81 per army; the pools are
     ## sized above the largest configured board so a unit id never falls out

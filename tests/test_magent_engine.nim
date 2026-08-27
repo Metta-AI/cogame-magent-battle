@@ -84,6 +84,42 @@ suite "magent engine":
     check run.sim.endReason == ReasonComplete
     check run.sim.gameLog.len == config.maxGames
 
+  test "the tier-2 event stream emits every kind it declares":
+    ## `events.SimEventKind` declares eight kinds and three of them --
+    ## TurnStart, Fallback and Rout -- had no emit site at all, so they could
+    ## never appear in a COGAME_EVENTS_URI stream (r1 review F15). Driven at one
+    ## command turn so the rout is exact rather than a hope about the sim.
+    var sim = playingSim(31)
+    sim.collectEvents = true
+    ## 12 of army 0 die between the first command turn and the next one
+    var killed = 0
+    for id in 0 ..< sim.units.soldiers.len:
+      if killed >= RoutLostThreshold + 2:
+        break
+      if sim.units.soldiers[id].army == 0 and sim.units.soldiers[id].alive:
+        sim.units.soldiers[id].alive = false
+        dec sim.units.aliveCount[0]
+        inc killed
+    check killed == RoutLostThreshold + 2
+    sim.tick = sim.config.turnTicks           ## the next turn is due
+    var engine = initDecisionEngine(sim.config)
+    engine.seats[0].isLlm = true              ## no credentials: it falls back
+    engine.seats[0].prompt = "hold the centre"
+    var state = initEpisodeState()
+    var writer = openReplayWriter("", sim.config.configJson())
+    state.runTurnIfDue(sim, engine, writer, 0)
+    var kinds: HashSet[string]
+    for event in sim.events:
+      kinds.incl($event.kind)
+    checkpoint("emitted kinds: " & $kinds)
+    for kind in ["turn_start", "fallback", "rout", "directive"]:
+      checkpoint(kind)
+      check kind in kinds
+    ## the mandatory summary row still closes the stream
+    let stream = eventsJsonl(sim.events, sim.tick)
+    check "\"type\":\"summary\"" in stream
+    check stream.endsWith("\n")
+
   test "budget guard settles early":
     ## With the guard forced (a wall-clock budget smaller than two turns), the
     ## LLM is switched off for the rest of the episode, a budget_guard record

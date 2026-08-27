@@ -55,7 +55,8 @@ proc stepEvents*(
     })
   for seat in 0 ..< SeatCount:
     let alive = sim.survivors(seat)
-    if tracker.lastAlive[seat] >= 0 and tracker.lastAlive[seat] - alive >= 10:
+    if tracker.lastAlive[seat] >= 0 and
+        tracker.lastAlive[seat] - alive >= RoutLostThreshold:
       result.add(%*{
         "k": "rout", "army": seat,
         "lost": tracker.lastAlive[seat] - alive})
