@@ -149,6 +149,18 @@ jobs:
           done
           exit "${fail}"
 
+      - name: The shipped baseline pick is still the swept pick
+        # The design note says CI re-runs the tuning harness. It does: the same
+        # 27-cell head-to-head grid the pick came from, asserting
+        # tools/ci/baseline_tuning.json equals DefaultBaselineParams and that
+        # the pick still ranks in the top half. tests/test_magent_tuning.nim
+        # covers the sweep over a shorter horizon; this is the tool itself, at
+        # the horizon it was tuned at, so a controller change that invalidates
+        # the pick is red here rather than in a ladder round.
+        run: |
+          set -euo pipefail
+          nim r --hints:off -d:release --path:src tools/tune_baselines.nim --check
+
   # ---------------------------------------------------------------------
   # The manifest under the INSTALLED coworld CLI's own loader, plus the
   # scaffold-residue and executable-bit gates. Repo CI otherwise cannot see a
