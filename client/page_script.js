@@ -577,7 +577,11 @@
       // bloat the chrome and a tiny 360px floor stays legible).
       var scale = Math.max(0.5, Math.min(1.6, boardW / 760));
       root.style.setProperty('--hudscale', scale.toFixed(3));
-      stage.classList.toggle('tiny', boardW <= 620);
+      // UNDER 640px of board the density drops to .tiny and the plate labels
+      // go. The starter toggles at 620; this fork uses the 640 the checklist
+      // and the game block's own CSS comment both state, so the 621-640 px
+      // band is no longer a strip where the labels stay and the comment lies.
+      stage.classList.toggle('tiny', boardW < 640);
       // Measure each band's natural height -> reserve exactly that.
       topBand = scorebug ? scorebug.offsetHeight : 0;
       band = transport ? transport.offsetHeight : 0;

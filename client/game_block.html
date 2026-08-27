@@ -68,7 +68,8 @@
   flex: none;
 }
 /* Under 640px of board the labels go: each plate keeps only
-   alias + name + alive count, and the kills numeral is hidden. */
+   alias + name + alive count, and the kills numeral is hidden. `.tiny` is
+   toggled by relayout() at boardW < 640 (page_script.js). */
 #stage.tiny .plate .alive-label,
 #stage.tiny .plate .kill-num,
 #stage.tiny .plate .fb-glyph { display: none; }

@@ -216,7 +216,9 @@ suite "magent viewer":
     check "root.style.setProperty('--hudscale'" in page
     check "root.style.setProperty('--topband'" in page
     check "root.style.setProperty('--band'" in page
-    check "stage.classList.toggle('tiny', boardW <= 620);" in page
+    ## labels hidden UNDER 640 px of board (checklist item 11); the starter's
+    ## own threshold was 620, which left 621-640 px labelled
+    check "stage.classList.toggle('tiny', boardW < 640);" in page
     check "Math.max(0.5, Math.min(1.6, boardW / 760))" in page
     ## nothing this game adds is positioned INSIDE the transport band: the heat
     ## chip is anchored to the TOP of #chrome

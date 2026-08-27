@@ -36,7 +36,9 @@
 (function () {
   'use strict';
 
-  var WIDTHS = [360, 620, 1024];
+  // 630 px sits between the starter's old 620 threshold and the 640 the
+  // checklist states, so the band that used to keep its labels is driven too.
+  var WIDTHS = [360, 620, 630, 1024];
   // 120 runes exactly -- MaxSayRunes. Two 4-byte emoji sit ON the cap so a byte
   // truncation anywhere on the path shows up as mojibake rather than silently
   // passing.
