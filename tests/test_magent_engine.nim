@@ -55,6 +55,17 @@ suite "magent engine":
     for key, _ in payload.pairs:
       keys.incl(key)
     check keys == ["message", "failed_policy_index"].toHashSet()
+    ## and every turn of the empty seat is recorded with cause `disconnected`,
+    ## so a replay reader can tell "nobody was home" from "a scripted filler
+    ## was seated" (r1 review F8)
+    var disconnected = 0
+    for record in parseReplayBytes(run.bytes).chats:
+      if "\"k\":\"fallback\"" in record.text:
+        let node = parseJson(record.text)
+        check node["slot"].getInt() == 1
+        check node["cause"].getStr() == "disconnected"
+        inc disconnected
+    check disconnected > 0
 
   test "an LLM seat with no credentials counts as a fallback, not a score":
     ## The client disables itself with no credentials, so every turn is a

@@ -244,6 +244,14 @@ proc turn*(
       var directive = scriptedDirective(
         sim, seat, engine.seats[seat].baseline, engine.pincerParams)
       sim.applyOrders(seat, directive)
+      if not sim.joined[seat]:
+        ## Nobody is home on this seat: its army is on autopilot for the whole
+        ## episode, and the replay says WHY rather than looking like a
+        ## deliberate scripted filler. `results.deadSeats` carries the same
+        ## fact once; this carries it per turn, where a reader of the chat
+        ## stream is looking.
+        result.add(fallbackRecord(game, turnIndex, seat, 1, "disconnected",
+          "seat never joined; its army plays the scripted baseline"))
 
   # --- the rate floor -------------------------------------------------------
   # The Bedrock sidecar caps 30 requests/minute PER EPISODE and two seats at a

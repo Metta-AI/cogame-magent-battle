@@ -133,6 +133,26 @@ or whose `orders` is not an array, is a parse failure — one retry, then the
 `pincer` fallback. An individual malformed order is **repaired to that squad's
 previous order**, not dropped, and counted in `ordersRejected`.
 
+### Why a turn fell back
+
+Every fallback is written to the replay as a `fallback` chat record carrying the
+seat, the attempt and a `cause` from exactly this set:
+
+| `cause` | The turn fell back because |
+|---|---|
+| `timeout` | the per-turn budget was exhausted before this attempt could start |
+| `transport_error` | the request failed at the transport (connection, TLS, non-timeout curl error) |
+| `parse_error` | a reply arrived and was not a usable directive after the retry |
+| `throttled` | the provider answered 429 and no other candidate model was left, so the retry batch is skipped |
+| `no_credentials` | no API key (or the provider rejected it), so the LLM leg is off |
+| `budget_guard` | two more turns would not fit the wall-clock budget; the rest of the episode plays scripted |
+| `disconnected` | the seat never joined, so nobody is issuing orders for that army |
+
+`throttled` is a divergence from the design note's enum, which folded 429 into
+`transport_error`; it is kept separate because a throttled episode and a broken
+one need different answers. Nothing consumes the set as closed —
+`tools/replay_summary.py` counts fallbacks and prints the causes it finds.
+
 **Every string that lands in the replay** — `say`, `notes`, the policy label,
 `stopDetail`, recorded error text — is truncated on **rune** boundaries. Byte
 truncation is what makes a replay that renders in a browser fail a strict UTF-8
