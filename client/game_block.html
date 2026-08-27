@@ -1,4 +1,16 @@
 <style>
+/* --- the muster curtain never swallows a transport click ---------------- */
+/* The inherited curtain covers the viewport at z-index 25 and only becomes
+   click-through when `.gone` lands, which is LOCKER_MIN_DWELL_MS (900 ms)
+   after the first frame -- so for the first ~900 ms every click on the
+   scrubber, the play button or a beat marker is eaten by a decorative scene.
+   A human rarely notices; a headless smoke clicks at ~400 ms and its
+   "mid-replay seek" readout is then the frame it started on (r1 review F14).
+   The curtain has no interactive children in this fork -- backdrop, sprites
+   and a rotating caption -- so it is decoration and says so. The fade,
+   the dwell and every inherited rule are untouched. */
+#lockerroom { pointer-events: none; }
+
 /* --- scorebug: side chip, alive numeral, fallback glyph ----------------- */
 /* The plate name must survive a 360px featured-match iframe: it grows into
    whatever room the plate has and ellipsises only when it genuinely runs out,
