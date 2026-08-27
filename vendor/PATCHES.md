@@ -1,8 +1,13 @@
-# Documented divergences from upstream `battle_v4`
+# Documented divergences — from upstream `battle_v4` and from the design note
 
 Every difference between this port and `vendor/upstream/battle.py`, and why.
 Anything not listed here is upstream's, and `tests/test_magent_upstream.nim`
 plus `tests/test_magent_spawn.nim` are the gates that keep it that way.
+
+Sections 1-5 and 8 are divergences from **upstream**. Sections 6, 7 and above
+are divergences from the **design note** (`docs/plans/`): the note said one
+thing, the build measured another, and the file records which and why. Both
+kinds live here so there is exactly one place to look.
 
 ## 1. HP and rewards are integers
 
