@@ -111,3 +111,28 @@ must observe advancement rather than a finished replay) needs not to happen. At
 8 ticks/s the CI replay (123 frames) plays for ~15 s and a full 600-tick
 episode for ~75 s. `TargetFps` stays 30 because it is still the presentation
 rate and the accumulator's denominator.
+
+## 10. `turnSpacingMs` is a BLOCKING sleep, not a wait the loop steps through
+
+The design note described the rate floor as "a floor on the wall clock between
+consecutive batch starts, not a sleep on the critical path: the loop keeps
+stepping ticks while it waits". What ships is a real `sleep()` on the game loop
+inside `decide.turn` (`decide.nim:252-255`), so no tick advances during it.
+
+Bounded, and inside the budget it has to be: the sleep is capped at
+`turnSpacingMs` (8 s shipped, 0 in the certification fixture), `turnStart` is
+taken BEFORE it, so `turnBudgetMs` (14 s) covers the spacing plus the first
+attempt and suppresses the retry rather than the first call. Worst case inside
+one turn is therefore 8 + 9 = 17 s, and the episode arithmetic is
+30 turns x 17 s = 510 s of turns + <= 80 s of lobby + ~4 s of sim + 20 s of
+shutdown grace = ~615 s, inside both the 660 s engine stop and the 720 s (60 %
+of 1200 s) settle target. A stop that lands mid-turn is served at most 17 s
+late, i.e. 677 s, still inside 720.
+
+Making the loop step ticks while the batch waits is a restructuring of the
+frame driver (the turn would have to become a state machine polled by
+`runEpisodeFrame` instead of a proc that returns its records), which is a
+design change and not a fix; it is recorded here instead. The observable cost
+is that the board holds still for up to 8 s between command turns on a live
+LLM episode -- the replay itself is unaffected, because playback derives every
+frame from the recorded orders and never waits.
