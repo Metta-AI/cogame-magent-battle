@@ -1,7 +1,7 @@
 ## Manifest pins. Every one of these corresponds to a release that was rejected
 ## by the platform validator with repo CI green, so each check names its scar.
 
-import std/[json, os, sets, strutils, unittest]
+import std/[json, os, sets, strutils, tables, unittest]
 import helpers
 import magent/roster
 
@@ -98,14 +98,27 @@ suite "magent manifest":
       check game["protocols"][key].kind == JObject
       check game["protocols"][key]["type"].getStr().len > 0
       check game["protocols"][key]["value"].getStr().startsWith("https://")
+    ## docs are INLINE TEXT, the shape the acceptance checklist spells (item
+    ## 10) -- and inline means the manifest carries a COPY, so each value is
+    ## asserted equal to the file it came from. Regenerate with
+    ## `python3 tools/embed_manifest_docs.py` after editing any of them.
     check game["docs"]["readme"].kind == JObject
-    check game["docs"]["readme"]["value"].getStr().endsWith("README.md")
+    check game["docs"]["readme"]["type"].getStr() == "text"
+    check game["docs"]["readme"]["value"].getStr() == readRepoFile("README.md")
     check game["docs"]["pages"].len == 2
+    let pageFiles = {
+      "rules.md": "docs/RULES.md",
+      "porting.md": "docs/PORTING-MAGENT.md"}.toTable
     for page in game["docs"]["pages"]:
       check page.hasKey("id")
       check page.hasKey("title")
+      check page["title"].getStr().len > 0
       check page["content"].kind == JObject
-      check page["content"]["value"].getStr().startsWith("https://")
+      check page["content"]["type"].getStr() == "text"
+      let id = page["id"].getStr()
+      checkpoint("docs page " & id)
+      check id in pageFiles
+      check page["content"]["value"].getStr() == readRepoFile(pageFiles[id])
 
   test "bundled players declare a cpu limit of at least 1":
     ## Upload 400 "player cpu limit '500m' is below the minimum of '1'"
