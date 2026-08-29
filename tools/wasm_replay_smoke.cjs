@@ -24,6 +24,13 @@ if (!fs.existsSync(modulePath)) {
   process.exit(1);
 }
 
+// The bundle is injected below with `Module` as a function parameter -- a
+// plain require() cannot configure it: under the CommonJS wrapper the
+// emitted `var Module = typeof Module != "undefined" ? Module : {}` declares
+// a new function-scoped binding that shadows any global we set, so it sees
+// its own hoisted `undefined`, discards this object and starts from `{}`.
+// locateFile and onRuntimeInitialized were silently dropped that way, run()
+// never fired, and the smoke exited 0 having tested nothing.
 const Module = {
   locateFile: (file) => path.resolve(distDir, file),
   onAbort: (what) => {
@@ -32,7 +39,6 @@ const Module = {
   },
   onRuntimeInitialized: () => { run(); },
 };
-global.Module = Module;
 
 function decode(ptrFn, lenFn) {
   const length = Module[lenFn]();
@@ -82,4 +88,6 @@ function run() {
     `bytes, tick ${packet.mg.tick}, alive ${packet.mg.alive.join(' v ')}`);
 }
 
-require(modulePath);
+new Function('Module', 'require', '__filename', '__dirname',
+  fs.readFileSync(modulePath, 'utf8'))(
+  Module, require, modulePath, path.dirname(modulePath));
