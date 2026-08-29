@@ -20,6 +20,14 @@ const
     ## the viewer soak and a human spectator both need.
   LullTicks* = 40
     ## A lull is this many consecutive ticks with no kill.
+  ReplayHalfSpeedIndex* = -1
+    ## `speedIndex` sentinel for the 1/2x playback speed (command '5'): the
+    ## accumulator is fed HALF the base rate, so the board crawls at four sim
+    ## ticks a second instead of eight. It is a sentinel rather than a
+    ## `PlaybackSpeeds` entry because that array is the engine's INTEGER speed
+    ## table, shared with the live loop, which has no fractional pace to give.
+    ## `playbackSpeed` clamps the sentinel back to 1x for anything that wants
+    ## an integer multiple.
 
 type
   Beat* = object
@@ -58,7 +66,15 @@ type
     player*: ReplayPlayer
 
 proc playbackSpeed*(player: ReplayPlayer): int =
+  ## The integer speed multiple. 1 at 1/2x -- the fractional pace lives in the
+  ## accumulator step, not here.
   PlaybackSpeeds[clamp(player.speedIndex, 0, PlaybackSpeeds.high)]
+
+proc replayDisplaySpeed*(player: ReplayPlayer): float =
+  ## The speed the chrome shows and highlights a chip for: 0.5 at 1/2x, else
+  ## the integer speed.
+  if player.speedIndex == ReplayHalfSpeedIndex: 0.5
+  else: float(player.playbackSpeed())
 
 proc startFrame*(player: ReplayPlayer): int =
   ## The first game-start frame. Everything before it is the recorded pre-game
@@ -259,6 +275,7 @@ proc applyCommand*(
   of 'e': player.seekTo(sim, player.maxFrame)
   of 'r': player.looping = not player.looping
   of 'f': player.skipLulls = not player.skipLulls
+  of '5': player.speedIndex = ReplayHalfSpeedIndex
   of '1': player.speedIndex = 0
   of '2': player.speedIndex = 1
   of '4': player.speedIndex = 2
@@ -284,7 +301,14 @@ proc advanceReplayFrame*(
     if player.looping:
       player.seekTo(sim, 0)
     return
-  player.accumulator += player.playbackSpeed() * TicksPerSecondBase
+  # The 1/2x speed halves the rate the accumulator is fed instead of adding a
+  # frame-parity gate: TicksPerSecondBase is even, so the halved step is exact
+  # and the crawl stays evenly spaced (a tick every 7.5 frames) rather than
+  # bunching into every other frame.
+  let step =
+    if player.speedIndex == ReplayHalfSpeedIndex: TicksPerSecondBase div 2
+    else: player.playbackSpeed() * TicksPerSecondBase
+  player.accumulator += step
   var advanced = 0
   while player.accumulator >= TargetFps and advanced < 8:
     player.accumulator -= TargetFps

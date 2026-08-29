@@ -56,16 +56,25 @@ proc stripHtmlComments(text: string): string =
 
 suite "magent viewer":
 
-  test "chrome_common is byte-identical to the starter's":
+  test "chrome_common is the starter's, plus exactly the replay-transport patch":
     ## Everything this game adds lives in the appended game block; the shared
-    ## chrome is copied, never edited and never reformatted. The pin is the
-    ## file's own sha256 as a literal, so an edit fails here even with the
-    ## starter mount absent.
+    ## chrome is copied, never reformatted, and carries exactly ONE patch --
+    ## the fleet-wide replay-transport patch below, which cannot live in the
+    ## game block because the speed->command map is private to the chrome's
+    ## IIFE.
     let text = chromeText()
     ## The pin is the file's own length and SHA-1 as literals, so an edit fails
     ## HERE even with the starter mount absent (a CI runner has no mount).
-    check text.len == 40022
-    check $secureHash(text) == "D970EBE4EFF1B0154BA604B4E9ADF62D601CB3EB"
+    check text.len == 40040
+    check $secureHash(text) == "B8317DD921A93AAAF277F92CA5CAF8219685F14F"
+    ## The patch itself, spelled out. The starter reads coworld-ctf's own
+    ## `window.CTF_WIRE`, which NOTHING in this fork defines, so the chrome ran
+    ## on its file:// fallbacks: speed chips for 3x and 16x the engine discards
+    ## and no 1/2x chip at all.
+    check "var WIRE = window.MAGENT_WIRE || {};" in text
+    check "CTF_WIRE" notin text
+    check "var SPEEDS = WIRE.speeds || [0.5, 1, 2, 3, 4, 8, 16];" in text
+    check "map = { 0.5: '5', 1: '1'," in text
     ## the machinery the appended block relies on, still present
     for name in ["window.ChromeCommon", "markBeat", "renderBeatMarkers",
                  "ingestBeats", "ingestLullSpans", "renderLullSpans",
@@ -76,7 +85,16 @@ suite "magent viewer":
     ## kinds can ride the same call
     check "if (b.k === 'steal'" in text
     if dirExists(StarterPath):
-      check text == readFile(StarterPath / "client/chrome_common.js")
+      ## Still the provenance gate: the starter's bytes with EXACTLY the three
+      ## substitutions above applied. Any OTHER drift from the starter fails
+      ## here, and the fix for a starter bump is to re-copy and re-patch, not
+      ## to re-pin the literals.
+      let patched = readFile(StarterPath / "client/chrome_common.js")
+        .replace("window.CTF_WIRE", "window.MAGENT_WIRE")
+        .replace("WIRE.speeds || [1, 2, 3, 4, 8, 16]",
+                 "WIRE.speeds || [0.5, 1, 2, 3, 4, 8, 16]")
+        .replace("map = { 1: '1',", "map = { 0.5: '5', 1: '1',")
+      check text == patched
 
   test "the broadcast page is the starter's, minus the removed elements, plus a block":
     let page = pageText()
@@ -208,6 +226,14 @@ suite "magent viewer":
 
   test "transport, endcard and the 360 px rules":
     let page = pageText()
+    ## Space pauses. client/replay_broadcast.html IS the bundle's index.html
+    ## and there is no iframe shell in this fork, so this ONE binding is every
+    ## shipped page -- pinned here because the chrome's play/pause chip and the
+    ## key must keep sending the same ' ' down the command channel.
+    check "function togglePlay() { send(' '); }" in page
+    check "if (k === ' ') { ev.preventDefault(); togglePlay(); }" in page
+    ## and the digit row reaches '5', the 1/2x speed command
+    check "else if (k >= '1' && k <= '9') send(k);" in page
     ## the endcard stops at the transport band and every seek dismisses it
     check "#endcard {" in page
     check "bottom: var(--band, 0px)" in page or "bottom: var(--band)" in page
@@ -311,6 +337,10 @@ suite "magent viewer":
 
   test "the wire constants are emitted from the Nim consts":
     check WireConstantsJs.startsWith("window.MAGENT_WIRE={")
+    ## the chip row the chrome builds: the replay-only 0.5 ahead of the
+    ## engine's integer PlaybackSpeeds
+    check ("speeds:[0.5," & $PlaybackSpeeds[0] & ",") in WireConstantsJs
+    check ("," & $PlaybackSpeeds[^1] & "],fps:") in WireConstantsJs
     check ("fps:" & $TargetFps) in WireConstantsJs
     check ("maxSayRunes:" & $MaxSayRunes) in WireConstantsJs
     check ("squads:" & $SquadCount) in WireConstantsJs
