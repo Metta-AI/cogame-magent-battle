@@ -289,6 +289,56 @@ suite "magent replay":
     check "hello".truncateBytes(MaxReplyBytes) == "hello"
     check "hello".truncateBytes(0) == ""
 
+  test "1/2x is a replay-only crawl at exactly half the tick rate":
+    ## The fleet-wide 1/2x playback speed. Command '5' selects
+    ## ReplayHalfSpeedIndex, the chrome is told 0.5, the integer speed clamps
+    ## to 1x for anything that wants a multiple, and playback spends HALF the
+    ## sim ticks per presentation frame.
+    var config = testConfig(mapSize = 31, maxTicks = 300)
+    let run = runScriptedEpisode(config)
+    var
+      data = parseReplayBytes(run.bytes)
+      initialized = initReplayRuntime(data, mismatchQuit = false)
+      player = initialized.player
+      sim = initialized.sim
+    check player.speedIndex == 0
+    check player.replayDisplaySpeed() == 1.0
+
+    proc framesOver(
+      player: var ReplayPlayer, sim: var SimServer, presentationFrames: int
+    ): int =
+      ## Sim frames the player spends over N presentation frames.
+      let before = player.frame
+      for _ in 0 ..< presentationFrames:
+        player.advanceReplayFrame(sim)
+      player.frame - before
+
+    player.skipLulls = false
+    player.playing = true
+    let atOne = player.framesOver(sim, TargetFps)
+    ## 1x: the base rate, by definition
+    checkpoint("1x spent " & $atOne & " sim frames a second, expected " &
+      $TicksPerSecondBase)
+    check atOne == TicksPerSecondBase
+
+    player.applyCommand(sim, "5")
+    check player.speedIndex == ReplayHalfSpeedIndex
+    check player.replayDisplaySpeed() == 0.5
+    ## the integer speed clamps to 1x at 1/2x (the live loop shares it)
+    check player.playbackSpeed() == 1
+    ## seekTo resets the accumulator, so the two windows are measured from the
+    ## same phase rather than from whatever 1x left behind
+    player.seekTo(sim, player.startFrame)
+    let atHalf = player.framesOver(sim, TargetFps)
+    checkpoint("1/2x spent " & $atHalf & " sim frames a second, expected " &
+      $(TicksPerSecondBase div 2))
+    check atHalf == TicksPerSecondBase div 2
+
+    ## and the chip row can climb back out
+    player.applyCommand(sim, "2")
+    check player.speedIndex == 1
+    check player.replayDisplaySpeed() == 2.0
+
   test "every committed fixture carries the current GameVersion":
     ## The starter's sweep over tests/, kept: a fixture recorded against older
     ## rules fails HERE rather than three CI jobs later.
