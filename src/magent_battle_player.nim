@@ -1,14 +1,12 @@
-## The magent-battle player container: a policy is just a prompt.
+## The magent-battle player container: scripted, prompt, or external policy.
 ##
-## This process is DELIBERATELY thin. It connects to its seat, sends ONE
-## Sprite v1 chat message carrying its registration, and then only receives.
-## Every decision happens inside the GAME server, because that is the only
-## container the platform injects the `anthropic_api_key` coworld secret into,
-## and because keeping the control layer server-side is what makes the recorded
-## order log reproducible with no network in the loop.
+## Prompt decisions run inside the game. External policies receive the same
+## fogged seat view and return catalog choices on the player socket.
 ##
 ##   PLAYER_PROMPT        a strategy in plain English -> this seat is an LLM seat
 ##   PLAYER_SCRIPTED      line | pincer                -> this seat is scripted
+##   PLAYER_NUMERIC_URL   frozen Fabric /actions endpoint
+##   PLAYER_JEV           1 to choose through System One
 ##   PLAYER_POLICY_LABEL  a free label for the replay's `register` record
 ##
 ## A seat that sets neither is `pincer`. To field your own policy, reuse this
@@ -17,10 +15,12 @@
 ##   coworld upload-policy <magent-battle-image> --name my-magent \
 ##     --run /bin/magent-battle-player --secret-env PLAYER_PROMPT="<strategy>"
 
-import std/[json, options, os, strutils]
+import std/[json, options, os, random, strutils, times]
 import bitworld/spriteprotocol
 import whisky
 import magent/sim_types
+import magent/numeric_policy
+import magent/jev_policy
 
 const
   ConnectAttempts = 240      ## 240 x 500 ms = 2 minutes of dialling.
@@ -34,7 +34,8 @@ const
 ## re-declared here once, which meant 4000/64 existed twice and could drift
 ## (r1 review F15).
 
-proc registrationBlob(prompt, scripted, policy: string): string =
+proc registrationBlob(prompt, scripted, policy: string,
+                      external: bool): string =
   ## The one registration message. `scripted` is JSON null when the seat is an
   ## LLM seat, so the server can tell "no baseline named" from "pincer named
   ## explicitly".
@@ -46,14 +47,22 @@ proc registrationBlob(prompt, scripted, policy: string): string =
     node["scripted"] = %scripted
   else:
     node["scripted"] = newJNull()
+  if external:
+    node["mode"] = %"external"
   blobFromSpriteChat($node)
+
+proc actionBlob(request: JsonNode, actions: seq[int]): string =
+  var message = "orders:" & $request["game"].getInt() & ":" &
+    $request["turn"].getInt() & ":"
+  for action in actions:
+    message.add(char(ord('0') + action div 10))
+    message.add(char(ord('0') + action mod 10))
+  blobFromSpriteChat(message)
 
 proc readyBlob(): string =
   ## The Sprite v1 player-ready packet (0x85). Legitimate here in a way it is
-  ## not for an ordinary player client: this seat sends NO inputs at all (the
-  ## server computes every soldier's action), so the dead-reckoning hazard
-  ## cannot arise, and a fastMode server can advance as soon as both seats
-  ## have acknowledged the frame.
+  ## not for an ordinary player client: the game still owns every soldier's
+  ## action, so a fastMode server can advance when both seats acknowledge.
   result = newString(1)
   result[0] = char(0x85)
 
@@ -64,16 +73,26 @@ when isMainModule:
   let
     prompt = getEnv("PLAYER_PROMPT").strip()
     scripted = getEnv("PLAYER_SCRIPTED").strip()
+    numeric = getEnv("PLAYER_NUMERIC_URL").strip().len > 0
+    jev = getEnv("PLAYER_JEV") == "1"
+    external = numeric or jev
     label = block:
       let explicit = getEnv("PLAYER_POLICY_LABEL").strip()
       if explicit.len > 0: explicit
+      elif jev: "jev"
+      elif numeric: "numeric"
       elif prompt.len > 0: "prompt"
       elif scripted.len > 0: scripted
       else: "pincer"
   echo "magent-battle player: kind=",
-    (if prompt.len > 0: "llm" else: "scripted"),
+    (if external: "external" elif prompt.len > 0: "llm" else: "scripted"),
     " baseline=", (if scripted.len > 0: scripted else: "pincer"),
     " label=", label
+  if external and (prompt.len > 0 or scripted.len > 0) or numeric and jev:
+    quit("Choose exactly one player policy mode", 1)
+  randomize()
+  let session = "magent:" & $getCurrentProcessId() & ":" &
+    $getTime().toUnix() & ":" & $rand(high(int))
 
   proc dial(attempts: int): WebSocket =
     ## Bounded dialling. The episode runner starts the players at the same
@@ -111,7 +130,8 @@ when isMainModule:
   while true:
     var sessionFrames = 0
     try:
-      socket.send(registrationBlob(prompt, scripted, label), BinaryMessage)
+      socket.send(registrationBlob(prompt, scripted, label, external),
+        BinaryMessage)
       var resends = 0
       while true:
         let received = socket.receiveMessage()
@@ -121,7 +141,14 @@ when isMainModule:
         if resends < RegistrationResends and
             sessionFrames mod ResendEveryFrames == 1:
           inc resends
-          socket.send(registrationBlob(prompt, scripted, label), BinaryMessage)
+          socket.send(registrationBlob(prompt, scripted, label, external),
+            BinaryMessage)
+        if external and received.get().kind == TextMessage:
+          let request = parseJson(received.get().data)
+          if request{"type"}.getStr() == "decision":
+            let actions = if jev: chooseJevActions(request)
+              else: chooseNumericActions(request, session)
+            socket.send(actionBlob(request, actions), BinaryMessage)
         socket.send(readyBlob(), BinaryMessage)
     except CatchableError as error:
       echo "magent-battle player: socket closed (", error.msg, ")"

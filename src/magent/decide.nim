@@ -16,17 +16,24 @@
 
 import std/[json, monotimes, os, strutils, times]
 import curly
-import sim, baselines, llm
+import sim, baselines, llm, policy_actions
 
 type
   SeatPolicy* = object
     ## What one seat registered as. A seat that registers with neither field --
     ## or never registers at all -- is `pincer`.
     isLlm*: bool
+    isExternal*: bool
     prompt*: string
     baseline*: Baseline
     label*: string
     registered*: bool
+
+  ExternalRequest* = tuple[seat: int, view: JsonNode]
+  ExternalDispatch* = proc(game, turn, deadlineMs: int,
+    requests: seq[ExternalRequest]) {.closure.}
+  ExternalCollect* = proc(game, turn, deadlineMs: int,
+    requests: seq[ExternalRequest]): seq[seq[int]] {.closure.}
 
   DecisionEngine* = object
     client*: LlmClient
@@ -36,13 +43,17 @@ type
     batchStarted*: bool
     llmOff*: bool              ## the budget guard fired; scripted from here on
     lastView*: array[SeatCount, JsonNode]
+    externalDispatch*: ExternalDispatch
+    externalCollect*: ExternalCollect
     pincerParams*: BaselineParams
       ## The swept tunables (tools/tune_baselines.nim). Held on the engine so
       ## the sweep can drive a whole episode with one candidate set without
       ## touching the shipped defaults.
 
-proc initDecisionEngine*(config: GameConfig): DecisionEngine =
-  result.client = newLlmClient(config)
+proc initDecisionEngine*(config: GameConfig,
+                         enableLlm = true): DecisionEngine =
+  result.client = if enableLlm: newLlmClient(config)
+    else: LlmClient(disabled: true)
   result.pincerParams = DefaultBaselineParams
   for seat in 0 ..< SeatCount:
     result.seats[seat].baseline = DefaultBaseline
@@ -50,7 +61,8 @@ proc initDecisionEngine*(config: GameConfig): DecisionEngine =
     result.lastView[seat] = newJNull()
 
 proc policyKind*(engine: DecisionEngine, seat: int): string =
-  if seat >= 0 and seat < SeatCount and engine.seats[seat].isLlm: "llm"
+  if engine.seats[seat].isExternal: "external"
+  elif engine.seats[seat].isLlm: "llm"
   else: "scripted"
 
 # ---------------------------------------------------------------------------
@@ -213,7 +225,10 @@ proc turn*(
   engine.client.throttled = false
 
   # --- budget guard: settle EARLY rather than overrun -----------------------
-  if not engine.llmOff:
+  var hasLlm = false
+  for seat in 0 ..< SeatCount:
+    if engine.seats[seat].isLlm: hasLlm = true
+  if hasLlm and not engine.llmOff:
     let turnSeconds = (sim.config.turnBudgetMs + 999) div 1000
     if elapsedSeconds + 2 * turnSeconds > sim.config.wallClockBudgetSeconds:
       engine.llmOff = true
@@ -224,9 +239,13 @@ proc turn*(
 
   # --- which seats need a call? --------------------------------------------
   var open: seq[int]
+  var external: seq[ExternalRequest]
   for seat in 0 ..< SeatCount:
     engine.lastView[seat] = engine.seatView(sim, seat, includeNotes = false)
-    if engine.seats[seat].isLlm and not engine.llmOff and
+    if engine.seats[seat].isExternal:
+      external.add((seat: seat,
+        view: engine.seatView(sim, seat, includeNotes = true)))
+    elif engine.seats[seat].isLlm and not engine.llmOff and
         not engine.client.disabled:
       open.add(seat)
     elif engine.seats[seat].isLlm:
@@ -257,13 +276,17 @@ proc turn*(
   # The Bedrock sidecar caps 30 requests/minute PER EPISODE and two seats at a
   # fast turn sit right on it. Hold the START of consecutive batches
   # `turnSpacingMs` apart, which pins the episode at <= 15 req/min.
-  if open.len > 0 and engine.batchStarted and sim.config.turnSpacingMs > 0:
+  if open.len + external.len > 0 and engine.batchStarted and
+      sim.config.turnSpacingMs > 0:
     let since = (getMonoTime() - engine.lastBatchStart).inMilliseconds.int
     if since < sim.config.turnSpacingMs:
       sleep(min(sim.config.turnSpacingMs, sim.config.turnSpacingMs - since))
-  if open.len > 0:
+  if open.len + external.len > 0:
     engine.lastBatchStart = getMonoTime()
     engine.batchStarted = true
+
+  if external.len > 0:
+    engine.externalDispatch(game, turnIndex, sim.config.turnBudgetMs, external)
 
   # --- up to two PARALLEL batches ------------------------------------------
   var attempt = 0
@@ -347,3 +370,22 @@ proc turn*(
     ## "falling back" is the phrase phase 60 greps the GAME log for.
     echo "magent llm: seat ", seat, " falling back to pincer (", cause,
       ") on turn ", turnIndex
+
+  if external.len > 0:
+    let actions = engine.externalCollect(
+      game, turnIndex, sim.config.turnBudgetMs, external)
+    doAssert actions.len == external.len
+    for position, request in external:
+      let seat = request.seat
+      if validActions(actions[position]):
+        var directive = directiveForActions(sim, seat, actions[position])
+        directive.source = dsExternal
+        sim.applyOrders(seat, directive)
+      else:
+        var directive = fallbackDirective(sim, seat, engine.pincerParams)
+        directive.say = ""
+        sim.applyOrders(seat, directive)
+        let cause = if actions[position].len == 0: "timeout"
+          else: "parse_error"
+        result.add(fallbackRecord(game, turnIndex, seat, 1, cause,
+          "external commander did not return nine legal actions"))

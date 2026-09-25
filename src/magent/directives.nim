@@ -1,4 +1,4 @@
-## The order schema: what a commander (LLM or scripted) may say, how a reply is
+## The order schema: what a commander may say, how a reply is
 ## parsed TOLERANTLY, and how an illegal order is REPAIRED to that squad's
 ## previous order rather than dropped.
 ##
@@ -34,6 +34,7 @@ type
 
   DirectiveSource* = enum
     dsLlm = "llm"
+    dsExternal = "external"
     dsScripted = "scripted"
     dsFallback = "fallback"
 
