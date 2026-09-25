@@ -171,7 +171,9 @@ proc applyReplayChat*(sim: var SimServer, text: string) =
           sim.seatNames[slot] == seatAlias(slot):
         sim.seatNames[slot] = sim.seatPolicyLabel[slot]
   of "fallback":
-    if slot >= 0 and slot < SeatCount and node{"attempt"}.getInt(1) == 2:
+    if slot >= 0 and slot < SeatCount and
+        (node{"attempt"}.getInt(1) == 2 or
+         sim.seatPolicyKind[slot] == "external"):
       inc sim.fallbackTurns[slot]
   of "directive":
     if slot >= 0 and slot < SeatCount and node{"source"}.getStr() == "llm":

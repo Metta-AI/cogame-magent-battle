@@ -8,7 +8,9 @@
 import std/[strutils, unicode]
 
 const
-  GameVersion* = "1"
+  GameVersion* = "2"
+    ## GV2: player-side commander actions and external directive records.
+    ##   Obsoletes GV1 replays.
     ## GV1 (magent-battle v1): MAgent2 battle_v4 ported to a 45x45 integer
     ##   grid, two commander seats, nine squads each, two games with the sides
     ##   swapped. Obsoletes nothing.

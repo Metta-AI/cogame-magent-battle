@@ -23,10 +23,10 @@ zero-sum:
 score[s] = sum over both games of ( 100 * outcome + survivors[s] - survivors[opp] )
 ```
 
-**A policy is just a prompt.** A champion sets `PLAYER_PROMPT` to a strategy in
-plain English; the game server composes that prompt with the seat's own fogged
-view and asks Claude for nine squad orders. A filler sets
-`PLAYER_SCRIPTED=line|pincer` instead. Both come out of the same image.
+Current champions set `PLAYER_PROMPT` to a strategy in plain English; the game
+server composes it with the seat's fogged view. Fillers set
+`PLAYER_SCRIPTED=line|pincer`. External numeric policies and Jev use the same
+ordinary seat socket, with the game still resolving every squad order.
 
 - Rules, in full: [docs/RULES.md](docs/RULES.md)
 - The protocol and the replay format: [docs/PROTOCOL.md](docs/PROTOCOL.md)
@@ -40,6 +40,7 @@ view and asks Claude for nine squad orders. A filler sets
 ```
 src/magent_battle.nim          the game server entrypoint (seed randomisation lives HERE)
 src/magent_battle_player.nim   the thin seat registrar -> /bin/magent-battle-player
+src/magent/numeric_bridge.nim  headless training bridge -> /bin/magent-battle-numeric-bridge
 src/magent/
   upstream.nim      every ported constant, beside the upstream line it came from
   arena.nim         the grid, the two CircleRange tables, upstream's generate_map
@@ -68,6 +69,31 @@ tests/              four balanced shards; run from the repo ROOT
 tools/              CI, forensics and the art pipeline
 vendor/upstream/    battle.py, byte-pristine at a pinned commit
 ```
+
+## Training and serving a commander
+
+The headless bridge drives the same two-game episode and side swap as the live
+server. It exposes each seat's fogged view as 141 numeric values and nine
+22-choice squad heads. The catalog has advance, retreat, two flanks, nine enemy
+focus targets, and nine hold sectors. The terminal utility is the game-owned
+zero-sum score divided by 362. The trainer controls one learner seat and
+advances the opponent with the shipped pincer teacher or a frozen policy.
+
+```bash
+nim c -d:release --path:src -o:magent-battle-numeric-bridge src/magent/numeric_bridge.nim
+uv run ./tools/run.py recipes.external.coworld.train --dry-run \
+  'command=["/absolute/path/magent-battle-numeric-bridge"]' \
+  players=2 seat=0 total_timesteps=1024
+```
+
+Run the Metta command from a Metta checkout with the multihead Coworld trainer
+in Metta PR #24933 and replace the bridge path. Current Metta `main` still has
+the older single-head trainer. A
+trained Fabric bundle can be served through `metta-choice-serve` at `/actions`.
+Set `PLAYER_NUMERIC_URL` on `/bin/magent-battle-player` for its player-side
+adapter, or `PLAYER_JEV=1` for Jev. Both return the same nine catalog choices
+through `/player`; the game owns legality, fallback, results, and replay. No
+Magent checkpoint has been trained yet.
 
 ## Building and testing
 

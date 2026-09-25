@@ -5,12 +5,73 @@
 import std/[json, os, sets, strutils, unittest]
 import helpers
 import magent/[broadcast, replay_runtime, roster]
+import magent/policy_actions
 
 proc resultKeys(sim: SimServer): HashSet[string] =
   for key, _ in parseJson(sim.armyResultsJson()).pairs:
     result.incl(key)
 
 suite "magent engine":
+
+  test "external commander uses the fogged view and game order parser":
+    var sim = playingSim(31)
+    var engine = initDecisionEngine(sim.config, enableLlm = false)
+    engine.seats[0].isExternal = true
+    var seen: JsonNode
+    engine.externalDispatch = proc(game, turn, deadlineMs: int,
+                                   requests: seq[ExternalRequest]) =
+      check game == 1
+      check turn == 1
+      check deadlineMs == sim.config.turnBudgetMs
+      check requests.len == 1
+      check requests[0].seat == 0
+      seen = requests[0].view
+    engine.externalCollect = proc(game, turn, deadlineMs: int,
+                                  requests: seq[ExternalRequest]): seq[seq[int]] =
+      discard game
+      discard turn
+      discard deadlineMs
+      discard requests
+      @[newSeq[int](SquadCount)]
+    discard engine.turn(sim, 1, 0)
+    check engine.policyKind(0) == "external"
+    check sim.directives[0].source == dsExternal
+    check sim.directives[0].orders[0].kind == okAdvance
+    check seen.kind == JObject
+    check seen{"enemy"}.kind == JObject
+    check seen{"opponent_policy"}.isNil
+    check values(seen).len == 141
+    check actionHeads().len == SquadCount
+
+  test "missing external orders settle as recorded pincer fallbacks":
+    var config = testConfig(mapSize = 31, maxTicks = 60)
+    var engine = initDecisionEngine(config, enableLlm = false)
+    engine.seats[0].isExternal = true
+    engine.externalDispatch = proc(game, turn, deadlineMs: int,
+                                   requests: seq[ExternalRequest]) =
+      discard game
+      discard turn
+      discard deadlineMs
+      discard requests
+    engine.externalCollect = proc(game, turn, deadlineMs: int,
+                                  requests: seq[ExternalRequest]): seq[seq[int]] =
+      discard game
+      discard turn
+      discard deadlineMs
+      discard requests
+      @[@[]]
+    let run = runHeadlessEpisode(config, engine, "")
+    check run.sim.endReason == ReasonComplete
+    check run.sim.fallbackTurns[0] > 0
+    var recorded = 0
+    for chat in parseReplayBytes(run.bytes).chats:
+      if "\"k\":\"fallback\"" in chat.text:
+        let entry = parseJson(chat.text)
+        if entry["slot"].getInt() == 0:
+          check entry["cause"].getStr() == "timeout"
+          inc recorded
+    check recorded == run.sim.fallbackTurns[0]
+
 
   test "episode writes artifacts":
     let path = getTempDir() / "magent-engine-episode.replay"

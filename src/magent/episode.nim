@@ -96,6 +96,7 @@ proc runTurnIfDue*(
     let directive = sim.directives[seat]
     case directive.source
     of dsLlm: inc sim.llmTurns[seat]
+    of dsExternal: discard
     of dsFallback:
       inc sim.fallbackTurns[seat]
       sim.emitEvent(Fallback, source = seat, amount = turnIndex)

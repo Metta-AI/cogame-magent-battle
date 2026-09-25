@@ -36,18 +36,24 @@ a slow viewer can never stall the episode.
 
 ## The seat
 
-`/bin/magent-battle-player` is deliberately thin. It dials its seat with bounded
-retries, sends ONE Sprite v1 chat message carrying its registration, and then only
-receives:
+`/bin/magent-battle-player` dials its seat with bounded retries and sends one
+Sprite v1 chat registration:
 
 ```json
 {"policy": "<label>", "prompt": "<PLAYER_PROMPT or empty>",
- "scripted": "line" | "pincer" | null}
+ "scripted": "line" | "pincer" | null, "mode": "external" | null}
 ```
 
-`prompt` is rune-truncated at 4000 runes and `policy` at 64. Every decision is
-made **inside the game server**, because that is the only container the platform
-injects the `anthropic_api_key` coworld secret into.
+`prompt` is rune-truncated at 4000 runes and `policy` at 64. Prompt and scripted
+decisions remain game-side. With `mode=external`, the game sends a text frame on
+the same `/player` socket containing `type=decision`, `game`, `turn`, `seat`,
+`deadline_ms`, and the fogged `observation` below. The player returns a Sprite
+chat `orders:<game>:<turn>:<18 digits>`. Every pair of digits is one catalog
+index from 00 through 21 for squads 1 through 9, in order. Late or invalid
+responses become a recorded pincer fallback. The game owns the action parser,
+physics, results, and replay. `PLAYER_NUMERIC_URL` calls a frozen Fabric
+`/actions` endpoint; `PLAYER_JEV=1` asks System One to choose from the same
+catalog. Set only one policy mode.
 
 Two details are scar tissue, not style:
 
@@ -58,11 +64,9 @@ Two details are scar tissue, not style:
   close frame and mummy's `send` only queues, so the game's own `quit(0)` can
   outrun the flushed frame. Exiting 1 there fails certification intermittently.
 
-A seat's chat is its **registration** and nothing else: it is consumed by the
-server, never applied as a shout and never written to the replay chat stream (the
-prompt is a secret). What the replay gets is a redacted `register` record with the
-policy label and kind only. Any other chat text from a seat is dropped —
-commanders speak through `say`, seats do not shout.
+Seat chats are consumed by the server, never applied as shouts. Registration
+keeps the prompt secret; the replay stores only its label and kind. External
+choices become the normal directive and order records.
 
 ## The observation
 
