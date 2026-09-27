@@ -25,7 +25,7 @@ score[s] = sum over both games of ( 100 * outcome + survivors[s] - survivors[opp
 
 Current champions set `PLAYER_PROMPT` to a strategy in plain English; the game
 server composes it with the seat's fogged view. Fillers set
-`PLAYER_SCRIPTED=line|pincer`. External numeric policies and Jev use the same
+`PLAYER_SCRIPTED=line|pincer`. External numeric policies use the same
 ordinary seat socket, with the game still resolving every squad order.
 
 - Rules, in full: [docs/RULES.md](docs/RULES.md)
@@ -91,7 +91,7 @@ in Metta PR #24933 and replace the bridge path. Current Metta `main` still has
 the older single-head trainer. A
 trained Fabric bundle can be served through `metta-choice-serve` at `/actions`.
 Set `PLAYER_NUMERIC_URL` on `/bin/magent-battle-player` for its player-side
-adapter, or `PLAYER_JEV=1` for Jev. Both return the same nine catalog choices
+adapter. It returns the same nine catalog choices
 through `/player`; the game owns legality, fallback, results, and replay. No
 Magent checkpoint has been trained yet.
 

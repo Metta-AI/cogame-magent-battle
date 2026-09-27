@@ -52,8 +52,7 @@ chat `orders:<game>:<turn>:<18 digits>`. Every pair of digits is one catalog
 index from 00 through 21 for squads 1 through 9, in order. Late or invalid
 responses become a recorded pincer fallback. The game owns the action parser,
 physics, results, and replay. `PLAYER_NUMERIC_URL` calls a frozen Fabric
-`/actions` endpoint; `PLAYER_JEV=1` asks System One to choose from the same
-catalog. Set only one policy mode.
+`/actions` endpoint and returns the same catalog choices.
 
 Two details are scar tissue, not style:
 

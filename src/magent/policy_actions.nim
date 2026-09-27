@@ -1,4 +1,4 @@
-## Finite commander actions shared by training, numeric players, and Jev.
+## Finite commander actions shared by training and ordinary player policies.
 
 import std/[json, strutils]
 import sim
