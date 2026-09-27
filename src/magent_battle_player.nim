@@ -6,7 +6,6 @@
 ##   PLAYER_PROMPT        a strategy in plain English -> this seat is an LLM seat
 ##   PLAYER_SCRIPTED      line | pincer                -> this seat is scripted
 ##   PLAYER_NUMERIC_URL   frozen Fabric /actions endpoint
-##   PLAYER_JEV           1 to choose through System One
 ##   PLAYER_POLICY_LABEL  a free label for the replay's `register` record
 ##
 ## A seat that sets neither is `pincer`. To field your own policy, reuse this
@@ -20,7 +19,6 @@ import bitworld/spriteprotocol
 import whisky
 import magent/sim_types
 import magent/numeric_policy
-import magent/jev_policy
 
 const
   ConnectAttempts = 240      ## 240 x 500 ms = 2 minutes of dialling.
@@ -74,12 +72,10 @@ when isMainModule:
     prompt = getEnv("PLAYER_PROMPT").strip()
     scripted = getEnv("PLAYER_SCRIPTED").strip()
     numeric = getEnv("PLAYER_NUMERIC_URL").strip().len > 0
-    jev = getEnv("PLAYER_JEV") == "1"
-    external = numeric or jev
+    external = numeric
     label = block:
       let explicit = getEnv("PLAYER_POLICY_LABEL").strip()
       if explicit.len > 0: explicit
-      elif jev: "jev"
       elif numeric: "numeric"
       elif prompt.len > 0: "prompt"
       elif scripted.len > 0: scripted
@@ -88,7 +84,7 @@ when isMainModule:
     (if external: "external" elif prompt.len > 0: "llm" else: "scripted"),
     " baseline=", (if scripted.len > 0: scripted else: "pincer"),
     " label=", label
-  if external and (prompt.len > 0 or scripted.len > 0) or numeric and jev:
+  if external and (prompt.len > 0 or scripted.len > 0):
     quit("Choose exactly one player policy mode", 1)
   randomize()
   let session = "magent:" & $getCurrentProcessId() & ":" &
@@ -146,8 +142,7 @@ when isMainModule:
         if external and received.get().kind == TextMessage:
           let request = parseJson(received.get().data)
           if request{"type"}.getStr() == "decision":
-            let actions = if jev: chooseJevActions(request)
-              else: chooseNumericActions(request, session)
+            let actions = chooseNumericActions(request, session)
             socket.send(actionBlob(request, actions), BinaryMessage)
         socket.send(readyBlob(), BinaryMessage)
     except CatchableError as error:
