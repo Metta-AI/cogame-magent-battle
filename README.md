@@ -81,15 +81,15 @@ advances the opponent with the shipped pincer teacher or a frozen policy.
 
 ```bash
 nim c -d:release --path:src -o:magent-battle-numeric-bridge src/magent/numeric_bridge.nim
-uv run ./tools/run.py recipes.external.coworld.train --dry-run \
+uv run ./tools/run.py train recipes.external.coworld \
   'command=["/absolute/path/magent-battle-numeric-bridge"]' \
   players=2 seat=0 total_timesteps=1024
 ```
 
-Run the Metta command from a Metta checkout with the multihead Coworld trainer
-in Metta PR #24933 and replace the bridge path. Current Metta `main` still has
-the older single-head trainer. A
-trained Fabric bundle can be served through `metta-choice-serve` at `/actions`.
+Run the Metta command from a current Metta checkout and replace the bridge
+path. The current recipe supports all nine action heads through native
+PufferLib and Fabric. Reserve an NVIDIA GPU before running the bounded
+optimizer. A trained Fabric bundle can be served through `metta-choice-serve` at `/actions`.
 Set `PLAYER_NUMERIC_URL` on `/bin/magent-battle-player` for its player-side
 adapter, or `PLAYER_JEV=1` for Jev. Both return the same nine catalog choices
 through `/player`; the game owns legality, fallback, results, and replay. No
