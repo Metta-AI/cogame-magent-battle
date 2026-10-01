@@ -83,9 +83,8 @@ suite "magent manifest":
     check manifest["game"]["replay_viewer"]["bundle"].getStr() ==
       "static-replay-viewer"
     check not manifest.hasKey("replay_viewer")
-    ## the secret namespace must equal game.name EXACTLY (cooperative-hunting)
-    check manifest["game"]["runnable"]["env"]["ANTHROPIC_API_KEY_URI"].getStr() ==
-      "secret://coworld/" & GameName & "/anthropic_api_key"
+    doAssert manifest{"game"}{"runnable"}{"env"}{"ANTHROPIC_API_KEY_URI"}.isNil,
+      "hosted LLM uses the platform sidecar without provider secrets"
     for variant in manifest["variants"]:
       check variant.hasKey("description")
       check variant["description"].getStr().len > 20
@@ -233,7 +232,7 @@ suite "magent manifest":
 
   test "the release and submit workflows expose the inputs phase 40 and 50 use":
     let release = readRepoFile(".github/workflows/coworld-release.yml")
-    for input in ["version:", "policies:", "put_secret:", "skip_certify:"]:
+    for input in ["version:", "policies:", "skip_certify:"]:
       check input in release
     check "release-result" in release
     check "\"player\"" in release or "'player'" in release
