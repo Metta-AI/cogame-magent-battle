@@ -13,9 +13,7 @@
       "type": "game",
       "image": "{{MAGENT_BATTLE_IMAGE}}",
       "run": ["/bin/magent-battle"],
-      "env": {
-        "ANTHROPIC_API_KEY_URI": "secret://coworld/magent-battle/anthropic_api_key"
-      }
+      "env": {}
     },
     "protocols": {
       "player": {
