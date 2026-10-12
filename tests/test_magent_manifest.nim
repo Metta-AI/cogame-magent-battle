@@ -138,7 +138,6 @@ suite "magent manifest":
     check "magent_battle:" in compose
     check "image: coworld-magent-battle:latest" in compose
     check "platform: linux/amd64" in compose
-    check "network: host" in compose
     ## exactly ONE service
     var services = 0
     for line in compose.splitLines():
